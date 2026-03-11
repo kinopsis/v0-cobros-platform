@@ -82,6 +82,14 @@ export default function SolicitudesPage() {
 
   const canCreateNew = user?.rol === "JUZGADO"
 
+  const ESTADOS_JUZGADO: EstadoSolicitud[] = ["EN_PROCESO", "RADICADA_EN_SIGOBIUS", "DEVUELTA"]
+
+  const estadosDisponibles = user?.rol === "JUZGADO"
+    ? Object.entries(ESTADO_LABELS).filter(([value]) =>
+        ESTADOS_JUZGADO.includes(value as EstadoSolicitud)
+      )
+    : Object.entries(ESTADO_LABELS)
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -132,7 +140,7 @@ export default function SolicitudesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
-                {Object.entries(ESTADO_LABELS).map(([value, label]) => (
+                {estadosDisponibles.map(([value, label]) => (
                   <SelectItem key={value} value={value}>{label}</SelectItem>
                 ))}
               </SelectContent>
@@ -181,7 +189,7 @@ export default function SolicitudesPage() {
                   <TableHead>Estado</TableHead>
                   <TableHead>Prioridad</TableHead>
                   {user?.rol !== "JUZGADO" && <TableHead>Despacho</TableHead>}
-                  {user?.rol !== "ABOGADO" && <TableHead>Abogado</TableHead>}
+                  {user?.rol !== "JUZGADO" && user?.rol !== "ABOGADO" && <TableHead>Abogado</TableHead>}
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -244,7 +252,7 @@ export default function SolicitudesPage() {
                             </div>
                           </TableCell>
                         )}
-                        {user?.rol !== "ABOGADO" && (
+                        {user?.rol !== "JUZGADO" && user?.rol !== "ABOGADO" && (
                           <TableCell>
                             <div className="text-sm">
                               {abogado?.nombre || "-"}
