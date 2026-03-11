@@ -610,3 +610,120 @@ export function generateRadicadoSIGOBIUS(): string {
   const count = mockSolicitudes.filter(s => s.radicadoSIGOBIUS).length + 1
   return `EXT-DESAJ-ME${year}-${count.toString().padStart(5, '0')}`
 }
+
+// Alertas
+interface Alerta {
+  id: string
+  titulo: string
+  descripcion: string
+  tipo: 'CRÍTICA' | 'URGENTE' | 'ADVERTENCIA' | 'INFORMACIÓN'
+  caso: string
+  fecha: string
+  leido: boolean
+}
+
+export const mockAlerts: Alerta[] = [
+  {
+    id: 'alr-001',
+    titulo: 'Vencimiento de plazo crítico',
+    descripcion: 'El plazo para el caso DESACATO-2024-001 vence en 3 días. Se requiere acción inmediata.',
+    tipo: 'CRÍTICA',
+    caso: 'DESACATO-2024-001',
+    fecha: 'Hoy a las 10:30',
+    leido: false
+  },
+  {
+    id: 'alr-002',
+    titulo: 'Documento requiere revisión',
+    descripcion: 'El documento de mandamiento de pago para COSTAS-2024-015 necesita validación.',
+    tipo: 'URGENTE',
+    caso: 'COSTAS-2024-015',
+    fecha: 'Hoy a las 09:15',
+    leido: false
+  },
+  {
+    id: 'alr-003',
+    titulo: 'Nuevo caso asignado',
+    descripcion: 'Se le ha asignado un nuevo caso DESACATO_FIDUPREVISORA-2024-042 con prioridad media.',
+    tipo: 'INFORMACIÓN',
+    caso: 'DESACATO_FIDUPREVISORA-2024-042',
+    fecha: 'Ayer a las 14:45',
+    leido: true
+  },
+  {
+    id: 'alr-004',
+    titulo: 'Próximo vencimiento de medidas cautelares',
+    descripcion: 'Las medidas cautelares del caso NO_PENAL-2024-008 vencen en una semana.',
+    tipo: 'ADVERTENCIA',
+    caso: 'NO_PENAL-2024-008',
+    fecha: 'Ayer a las 11:20',
+    leido: false
+  },
+  {
+    id: 'alr-005',
+    titulo: 'Solicitud de información complementaria',
+    descripcion: 'Se requiere información adicional del sancionado en DESACATO-2024-005.',
+    tipo: 'URGENTE',
+    caso: 'DESACATO-2024-005',
+    fecha: 'Hace 2 días',
+    leido: true
+  },
+  {
+    id: 'alr-006',
+    titulo: 'Caso finalizado exitosamente',
+    descripcion: 'El caso COSTAS-2024-020 ha sido cerrado con cobro exitoso.',
+    tipo: 'INFORMACIÓN',
+    caso: 'COSTAS-2024-020',
+    fecha: 'Hace 3 días',
+    leido: true
+  },
+  {
+    id: 'alr-007',
+    titulo: 'Cambio de estado en solicitud',
+    descripcion: 'La solicitud SOL-2024-00045 ha sido radicada en SIGOBIUS.',
+    tipo: 'INFORMACIÓN',
+    caso: 'SOL-2024-00045',
+    fecha: 'Hace 4 días',
+    leido: true
+  },
+  {
+    id: 'alr-008',
+    titulo: 'Pendiente de validación',
+    descripcion: 'Solicitud SOL-2024-00048 requiere revisión y validación.',
+    tipo: 'ADVERTENCIA',
+    caso: 'SOL-2024-00048',
+    fecha: 'Hace 1 día',
+    leido: false
+  }
+]
+
+// Usuarios para la página de usuarios
+export const mockUsers = [
+  ...mockUsuarios,
+  {
+    id: "abo-005",
+    email: "sandra.castillo@desaj.gov.co",
+    nombre: "Sandra Castillo",
+    rol: "ABOGADO" as const,
+    activo: true,
+    especialidades: ["REINTEGRO"],
+    capacidadMaxima: 18,
+    disponibilidad: "DISPONIBLE" as const,
+    casosActivos: 8,
+    juzgado: "Juzgado 1 Civil"
+  }
+]
+
+// Casos para reportes
+export const mockCasos = mockSolicitudes.map((s, i) => ({
+  id: s.id,
+  numero: `CASO-${s.year}-${(i + 1).toString().padStart(5, '0')}`,
+  estado: ['EN_PROCESO', 'ASIGNADA_A_ABOGADO', 'CERRADA', 'TERMINADA_SIN_PAGO'][
+    Math.floor(Math.random() * 4)
+  ] as any,
+  monto: Math.random() > 0.3 ? 5000000 + Math.random() * 50000000 : 0,
+  solicitante: s.solicitante,
+  prioridad: ['ALTA', 'MEDIA', 'BAJA'][Math.floor(Math.random() * 3)] as any,
+  year: s.year
+})
+
