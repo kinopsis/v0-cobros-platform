@@ -725,5 +725,5 @@ export const mockCasos = mockSolicitudes.map((s, i) => ({
   solicitante: s.solicitante,
   prioridad: ['ALTA', 'MEDIA', 'BAJA'][Math.floor(Math.random() * 3)] as any,
   year: s.year
-})
+}))
 
