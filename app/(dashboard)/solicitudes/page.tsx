@@ -82,7 +82,7 @@ export default function SolicitudesPage() {
 
   const canCreateNew = user?.rol === "JUZGADO"
 
-  const ESTADOS_JUZGADO: EstadoSolicitud[] = ["EN_PROCESO", "RADICADA_EN_SIGOBIUS", "DEVUELTA"]
+  const ESTADOS_JUZGADO: EstadoSolicitud[] = ["EN_PROCESO", "RADICADA_EN_SIGOBIUS", "DEVUELTA", "DEVUELTA_AL_JUZGADO"]
 
   const estadosDisponibles = user?.rol === "JUZGADO"
     ? Object.entries(ESTADO_LABELS).filter(([value]) =>

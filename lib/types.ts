@@ -23,6 +23,7 @@ export type EstadoSolicitud =
   | "RECIBIDA"
   | "EN_VALIDACION"
   | "DEVUELTA"
+  | "DEVUELTA_AL_JUZGADO"
   | "RADICADA_EN_SIGOBIUS"
   | "ASIGNADA_A_ABOGADO"
   | "EN_PROCESO"
@@ -102,6 +103,8 @@ export interface Solicitud {
   radicadoSistemaJusticia?: string
   observaciones?: string
   motivoDevolucion?: string
+  motivoDevolucionAbogado?: string
+  archivosRequeridos?: string
   prioridad: Prioridad
   diasSLA: number
   // Resultado del proceso (si cerrado)
@@ -180,7 +183,8 @@ export const ASUNTO_LABELS: Record<Asunto, string> = {
 export const ESTADO_LABELS: Record<EstadoSolicitud, string> = {
   RECIBIDA: "Recibida",
   EN_VALIDACION: "En Validación",
-  DEVUELTA: "Devuelta",
+  DEVUELTA: "Devuelta por Gestor",
+  DEVUELTA_AL_JUZGADO: "Devuelta al Juzgado",
   RADICADA_EN_SIGOBIUS: "Radicada en SIGOBIUS",
   ASIGNADA_A_ABOGADO: "Asignada a Abogado",
   EN_PROCESO: "En Proceso",
@@ -195,6 +199,7 @@ export const ESTADO_COLORS: Record<EstadoSolicitud, string> = {
   RECIBIDA: "bg-blue-100 text-blue-800",
   EN_VALIDACION: "bg-yellow-100 text-yellow-800",
   DEVUELTA: "bg-red-100 text-red-800",
+  DEVUELTA_AL_JUZGADO: "bg-rose-100 text-rose-800",
   RADICADA_EN_SIGOBIUS: "bg-emerald-100 text-emerald-800",
   ASIGNADA_A_ABOGADO: "bg-indigo-100 text-indigo-800",
   EN_PROCESO: "bg-cyan-100 text-cyan-800",
