@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import {
+import { Input } from "@/components/ui/input"
+import { 
   Select,
   SelectContent,
   SelectItem,
@@ -25,7 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-import { mockSolicitudes, mockUsuarios, generateRadicadoSIGOBIUS } from "@/lib/mock-data"
+import { mockSolicitudes, mockUsuarios } from "@/lib/mock-data"
 import { 
   ESTADO_LABELS, 
   ESTADO_COLORS, 
@@ -66,10 +67,13 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter()
   const [isApproving, setIsApproving] = useState(false)
   const [isAssigning, setIsAssigning] = useState(false)
+  const [showRadicacionDialog, setShowRadicacionDialog] = useState(false)
   const [showDevolucionDialog, setShowDevolucionDialog] = useState(false)
   const [showAsignacionDialog, setShowAsignacionDialog] = useState(false)
   const [motivoDevolucion, setMotivoDevolucion] = useState("")
   const [abogadoSeleccionado, setAbogadoSeleccionado] = useState("")
+  const [radicadoSIGOBIUS, setRadicadoSIGOBIUS] = useState("")
+  const [radicadoError, setRadicadoError] = useState("")
 
   const solicitud = mockSolicitudes.find(s => s.id === id)
   const abogados = mockUsuarios.filter(u => u.rol === "ABOGADO" && u.activo)
@@ -97,17 +101,27 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
     .filter(a => a.especialidades?.includes(solicitud.claseProceso))
     .sort((a, b) => (a.casosActivos || 0) - (b.casosActivos || 0))[0]
 
-  const handleAprobar = async () => {
+  const handleAprobar = () => {
+    setRadicadoSIGOBIUS("")
+    setRadicadoError("")
+    setShowRadicacionDialog(true)
+  }
+
+  const handleConfirmarRadicacion = async () => {
+    if (!radicadoSIGOBIUS.trim()) {
+      setRadicadoError("Debe ingresar el radicado SIGOBIUS")
+      return
+    }
     setIsApproving(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    const radicado = generateRadicadoSIGOBIUS()
+    await new Promise(resolve => setTimeout(resolve, 1200))
     toast.success(
       <div className="flex flex-col gap-1">
         <span className="font-medium">Solicitud aprobada y radicada</span>
-        <span className="text-sm">Radicado SIGOBIUS: {radicado}</span>
+        <span className="text-sm">Radicado SIGOBIUS: {radicadoSIGOBIUS.trim()}</span>
       </div>
     )
     setIsApproving(false)
+    setShowRadicacionDialog(false)
     setShowAsignacionDialog(true)
   }
 
@@ -410,6 +424,73 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
       </div>
+
+      {/* Dialog de radicación manual SIGOBIUS */}
+      <Dialog open={showRadicacionDialog} onOpenChange={(open) => {
+        if (!isApproving) setShowRadicacionDialog(open)
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              Aprobar y Radicar en SIGOBIUS
+            </DialogTitle>
+            <DialogDescription>
+              Ingrese el número de radicado asignado en SIGOBIUS para esta solicitud. Este número debe ser generado directamente en el sistema SIGOBIUS antes de continuar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-md bg-muted/60 border px-4 py-3 text-sm space-y-1">
+              <p className="text-muted-foreground">Solicitud</p>
+              <p className="font-mono font-medium">{solicitud.id}</p>
+              <p className="text-muted-foreground mt-2">Radicado de origen</p>
+              <p className="font-mono font-medium">{solicitud.radicadoOrigen}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="radicado-sigobius">
+                Radicado SIGOBIUS <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="radicado-sigobius"
+                placeholder="Ej: EXT-DESAJ-ME25-00042"
+                value={radicadoSIGOBIUS}
+                onChange={(e) => {
+                  setRadicadoSIGOBIUS(e.target.value)
+                  if (radicadoError) setRadicadoError("")
+                }}
+                className={radicadoError ? "border-destructive focus-visible:ring-destructive" : ""}
+                autoFocus
+              />
+              {radicadoError && (
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {radicadoError}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                La integración automática con SIGOBIUS estará disponible en una próxima versión.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRadicacionDialog(false)}
+              disabled={isApproving}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmarRadicacion} disabled={isApproving}>
+              {isApproving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+              )}
+              Aprobar y Radicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de devolución */}
       <Dialog open={showDevolucionDialog} onOpenChange={setShowDevolucionDialog}>
