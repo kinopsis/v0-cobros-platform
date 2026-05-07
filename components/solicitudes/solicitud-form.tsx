@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +17,16 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+import { cn } from "@/lib/utils"
 import { 
   ClaseProceso, 
   Asunto, 
@@ -38,7 +48,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Save
+  Save,
+  CalendarIcon,
+  Scale
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -68,6 +80,94 @@ export function SolicitudForm({ mode = "create" }: SolicitudFormProps) {
 
   const [documentos, setDocumentos] = useState<File[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Opciones de Trámite
+  const TRAMITE_OPTIONS = [
+    { value: "APERTURA", label: "APERTURA" },
+    { value: "DEVOLUCION", label: "DEVOLUCION" },
+    { value: "DUPLICADO", label: "DUPLICADO" },
+    { value: "INAPLICACION", label: "INAPLICACION" },
+    { value: "OTRO", label: "OTRO" },
+    { value: "TRASLADO", label: "TRASLADO" },
+  ]
+
+  // Opciones de Concepto
+  const CONCEPTO_OPTIONS = [
+    { value: "ARANCEL", label: "Arancel" },
+    { value: "INCAPACIDAD", label: "Incapacidad" },
+    { value: "MULTA", label: "Multa" },
+    { value: "POLIZA", label: "Póliza" },
+    { value: "REINTEGRO", label: "Reintegro" },
+  ]
+
+  // Opciones de Tipo (moneda/unidad)
+  const TIPO_OPTIONS = [
+    { value: "PESOS", label: "PESOS" },
+    { value: "SALARIOS", label: "SALARIOS" },
+    { value: "UVTS", label: "UVTs" },
+    { value: "UVBS", label: "UVBs" },
+  ]
+
+  // Estado de etapa preliminar
+  const [etapaPreliminar, setEtapaPreliminar] = useState({
+    tramite: "",
+    concepto: "",
+    naturaleza: "",
+    noOrigen: "",
+    competencia: "",
+    providencia: null as Date | null,
+    ejecutoria: null as Date | null,
+    folios: "",
+    dias: "10",
+    remisorio: "",
+    plazo: null as Date | null,
+    fechaLiquidacion: null as Date | null,
+    tipo: "",
+    cantidad: "",
+    cantidadLetras: "",
+    obligacion: "",
+    obligacionLetras: "",
+    cumpleRequisitos: false,
+    tipoExpedienteFisico: false,
+    tipoExpedienteDigital: false,
+    observacionesEtapa: ""
+  })
+
+  // Helper para convertir número a letras
+  const numeroALetras = (num: number): string => {
+    if (isNaN(num) || num === 0) return ""
+    return new Intl.NumberFormat('es-CO').format(num) + " PESOS M/CTE"
+  }
+
+  // Auto-calcular cantidad en letras
+  useEffect(() => {
+    const num = parseFloat(etapaPreliminar.cantidad.replace(/[,.]/g, ''))
+    if (!isNaN(num) && num > 0) {
+      setEtapaPreliminar(prev => ({
+        ...prev,
+        cantidadLetras: numeroALetras(num)
+      }))
+    } else {
+      setEtapaPreliminar(prev => ({ ...prev, cantidadLetras: "" }))
+    }
+  }, [etapaPreliminar.cantidad])
+
+  // Auto-calcular obligación en letras
+  useEffect(() => {
+    const num = parseFloat(etapaPreliminar.obligacion.replace(/[,.]/g, ''))
+    if (!isNaN(num) && num > 0) {
+      setEtapaPreliminar(prev => ({
+        ...prev,
+        obligacionLetras: numeroALetras(num)
+      }))
+    } else {
+      setEtapaPreliminar(prev => ({ ...prev, obligacionLetras: "" }))
+    }
+  }, [etapaPreliminar.obligacion])
+
+  const handleEtapaChange = (field: string, value: string | boolean | Date | null) => {
+    setEtapaPreliminar(prev => ({ ...prev, [field]: value }))
+  }
 
   // Validación de radicado de 23 dígitos
   const validateRadicado = (value: string) => {
@@ -400,14 +500,370 @@ export function SolicitudForm({ mode = "create" }: SolicitudFormProps) {
         </CardContent>
       </Card>
 
-      {/* Sección 3: Sancionados */}
+      {/* Sección 3: Etapa Preliminar */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Scale className="h-5 w-5 text-primary" />
+            Datos del Proceso - Etapa Preliminar
+          </CardTitle>
+          <CardDescription>
+            Complete la información de la etapa preliminar del proceso
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Row 1: Trámite y Concepto */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="tramite">
+                Trámite <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={etapaPreliminar.tramite}
+                onValueChange={(v) => handleEtapaChange("tramite", v)}
+                disabled={isViewMode}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Por favor seleccione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRAMITE_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="concepto">Concepto</Label>
+              <Select
+                value={etapaPreliminar.concepto}
+                onValueChange={(v) => handleEtapaChange("concepto", v)}
+                disabled={isViewMode}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Por favor seleccione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONCEPTO_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Row 2: Naturaleza y No.Origen */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="naturaleza">Naturaleza</Label>
+              <Select
+                value={etapaPreliminar.naturaleza}
+                onValueChange={(v) => handleEtapaChange("naturaleza", v)}
+                disabled={isViewMode}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Por favor seleccione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ADMINISTRATIVA">Administrativa</SelectItem>
+                  <SelectItem value="JUDICIAL">Judicial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="noOrigen">No.Origen</Label>
+              <Input
+                id="noOrigen"
+                value={etapaPreliminar.noOrigen}
+                onChange={(e) => handleEtapaChange("noOrigen", e.target.value)}
+                disabled={isViewMode}
+              />
+            </div>
+          </div>
+
+          {/* Row 3: Competencia */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="competencia">
+                Competencia <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="competencia"
+                placeholder="Escriba para buscar..."
+                value={etapaPreliminar.competencia}
+                onChange={(e) => handleEtapaChange("competencia", e.target.value)}
+                disabled={isViewMode}
+              />
+            </div>
+          </div>
+
+          {/* Row 4: Providencia y Ejecutoria */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Providencia</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isViewMode}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !etapaPreliminar.providencia && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {etapaPreliminar.providencia ? format(etapaPreliminar.providencia, "dd/MM/yyyy", { locale: es }) : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={etapaPreliminar.providencia || undefined}
+                    onSelect={(date) => handleEtapaChange("providencia", date || null)}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label>Ejecutoria</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isViewMode}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !etapaPreliminar.ejecutoria && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {etapaPreliminar.ejecutoria ? format(etapaPreliminar.ejecutoria, "dd/MM/yyyy", { locale: es }) : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={etapaPreliminar.ejecutoria || undefined}
+                    onSelect={(date) => handleEtapaChange("ejecutoria", date || null)}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {/* Row 5: Folios y Días */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="folios">Folios</Label>
+              <Input
+                id="folios"
+                value={etapaPreliminar.folios}
+                onChange={(e) => handleEtapaChange("folios", e.target.value)}
+                disabled={isViewMode}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dias">Días</Label>
+              <Input
+                id="dias"
+                value={etapaPreliminar.dias}
+                onChange={(e) => handleEtapaChange("dias", e.target.value)}
+                disabled={isViewMode}
+              />
+            </div>
+          </div>
+
+          {/* Row 6: Remisorio y Plazo */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="remisorio">Remisorio</Label>
+              <Input
+                id="remisorio"
+                value={etapaPreliminar.remisorio}
+                onChange={(e) => handleEtapaChange("remisorio", e.target.value)}
+                disabled={isViewMode}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Plazo</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isViewMode}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !etapaPreliminar.plazo && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {etapaPreliminar.plazo ? format(etapaPreliminar.plazo, "dd/MM/yyyy", { locale: es }) : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={etapaPreliminar.plazo || undefined}
+                    onSelect={(date) => handleEtapaChange("plazo", date || null)}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {/* Row 7: Fecha Liquidación, Tipo, Cantidad, Cantidad Letras */}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            <div className="space-y-2">
+              <Label>Fecha Liquidación</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isViewMode}
+                    className={cn(
+                      "w-full justify-start text-left font-normal text-xs",
+                      !etapaPreliminar.fechaLiquidacion && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-1 h-3 w-3" />
+                    {etapaPreliminar.fechaLiquidacion ? format(etapaPreliminar.fechaLiquidacion, "dd/MM/yy", { locale: es }) : "Fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={etapaPreliminar.fechaLiquidacion || undefined}
+                    onSelect={(date) => handleEtapaChange("fechaLiquidacion", date || null)}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tipo">Tipo</Label>
+              <Select
+                value={etapaPreliminar.tipo}
+                onValueChange={(v) => handleEtapaChange("tipo", v)}
+                disabled={isViewMode}
+              >
+                <SelectTrigger className="text-xs">
+                  <SelectValue placeholder="Por favor sel..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPO_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cantidad">Cantidad</Label>
+              <Input
+                id="cantidad"
+                value={etapaPreliminar.cantidad}
+                onChange={(e) => handleEtapaChange("cantidad", e.target.value)}
+                disabled={isViewMode}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cantidadLetras">Cantidad Letras</Label>
+              <Input
+                id="cantidadLetras"
+                value={etapaPreliminar.cantidadLetras}
+                readOnly
+                className="bg-emerald-500 text-white border-emerald-500"
+              />
+            </div>
+          </div>
+
+          {/* Row 8: Obligación y Obligación Letras */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="obligacion">Obligación</Label>
+              <Input
+                id="obligacion"
+                value={etapaPreliminar.obligacion}
+                onChange={(e) => handleEtapaChange("obligacion", e.target.value)}
+                disabled={isViewMode}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="obligacionLetras">Obligación Letras</Label>
+              <Input
+                id="obligacionLetras"
+                value={etapaPreliminar.obligacionLetras}
+                readOnly
+                className="bg-emerald-500 text-white border-emerald-500"
+              />
+            </div>
+          </div>
+
+          {/* Row 9: Cumple Requisitos y Tipo de Expediente */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex items-center space-x-2 pt-4">
+              <Checkbox
+                id="cumpleRequisitos"
+                checked={etapaPreliminar.cumpleRequisitos}
+                onCheckedChange={(checked) => handleEtapaChange("cumpleRequisitos", !!checked)}
+                disabled={isViewMode}
+              />
+              <Label htmlFor="cumpleRequisitos" className="cursor-pointer">
+                Cumple Requisitos
+              </Label>
+            </div>
+            <div className="flex items-center gap-6 pt-4">
+              <span className="text-sm text-muted-foreground">Tipo de Expediente:</span>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="tipoExpedienteFisico"
+                  checked={etapaPreliminar.tipoExpedienteFisico}
+                  onCheckedChange={(checked) => handleEtapaChange("tipoExpedienteFisico", !!checked)}
+                  disabled={isViewMode}
+                />
+                <Label htmlFor="tipoExpedienteFisico" className="cursor-pointer">Físico</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="tipoExpedienteDigital"
+                  checked={etapaPreliminar.tipoExpedienteDigital}
+                  onCheckedChange={(checked) => handleEtapaChange("tipoExpedienteDigital", !!checked)}
+                  disabled={isViewMode}
+                />
+                <Label htmlFor="tipoExpedienteDigital" className="cursor-pointer">Digital</Label>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 10: Observaciones */}
+          <div className="space-y-2">
+            <Label htmlFor="observacionesEtapa" className="text-center block">Observaciones</Label>
+            <Textarea
+              id="observacionesEtapa"
+              value={etapaPreliminar.observacionesEtapa}
+              onChange={(e) => handleEtapaChange("observacionesEtapa", e.target.value)}
+              disabled={isViewMode}
+              rows={4}
+              className="resize-none"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sección 4: Sancionados */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5 text-primary" />
-                Personas Involucradas (Sancionados)
+                Personas Sancionadas
               </CardTitle>
               <CardDescription>
                 Personas naturales o jurídicas con obligación económica pendiente
