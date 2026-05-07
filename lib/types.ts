@@ -110,6 +110,30 @@ export interface Solicitud {
   // Resultado del proceso (si cerrado)
   resultado?: string
   montoRecuperado?: number
+  // Etapa Preliminar
+  etapaPreliminar?: {
+    tramite?: string
+    concepto?: string
+    naturaleza?: string
+    noOrigen?: string
+    competencia?: string
+    providencia?: Date
+    ejecutoria?: Date
+    folios?: string
+    dias?: string
+    remisorio?: string
+    plazo?: Date
+    fechaLiquidacion?: Date
+    tipo?: string
+    cantidad?: string
+    cantidadLetras?: string
+    obligacion?: string
+    obligacionLetras?: string
+    cumpleRequisitos?: boolean
+    tipoExpedienteFisico?: boolean
+    tipoExpedienteDigital?: boolean
+    observaciones?: string
+  }
 }
 
 export interface LogAuditoria {

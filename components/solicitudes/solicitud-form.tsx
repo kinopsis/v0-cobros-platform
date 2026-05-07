@@ -383,7 +383,7 @@ export function SolicitudForm({ mode = "create" }: SolicitudFormProps) {
         </CardContent>
       </Card>
 
-      {/* Sección 2: Datos del Proceso */}
+      {/* Sección 2: Datos del Proceso (Unificada) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -391,129 +391,130 @@ export function SolicitudForm({ mode = "create" }: SolicitudFormProps) {
             Datos del Proceso
           </CardTitle>
           <CardDescription>
-            Información del proceso de cobro coactivo
+            Información completa del proceso de cobro coactivo
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="radicadoOrigen">
-                Radicado de Origen <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="radicadoOrigen"
-                placeholder="23 dígitos (ej: 05001310500120260001200)"
-                value={formData.radicadoOrigen}
-                onChange={(e) => handleInputChange("radicadoOrigen", e.target.value)}
-                disabled={isViewMode}
-                maxLength={23}
-                className={errors.radicadoOrigen ? "border-destructive" : ""}
-              />
-              {errors.radicadoOrigen && (
-                <p className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  {errors.radicadoOrigen}
-                </p>
-              )}
-              {formData.radicadoOrigen && !errors.radicadoOrigen && formData.radicadoOrigen.length === 23 && (
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Formato válido
-                </p>
-              )}
+        <CardContent className="space-y-6">
+          {/* Información General del Proceso */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Información General
+            </h4>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="radicadoOrigen">
+                  Radicado de Origen <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="radicadoOrigen"
+                  placeholder="23 dígitos (ej: 05001310500120260001200)"
+                  value={formData.radicadoOrigen}
+                  onChange={(e) => handleInputChange("radicadoOrigen", e.target.value)}
+                  disabled={isViewMode}
+                  maxLength={23}
+                  className={errors.radicadoOrigen ? "border-destructive" : ""}
+                />
+                {errors.radicadoOrigen && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.radicadoOrigen}
+                  </p>
+                )}
+                {formData.radicadoOrigen && !errors.radicadoOrigen && formData.radicadoOrigen.length === 23 && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Formato válido
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="claseProceso">
+                  Clase de Proceso <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={formData.claseProceso}
+                  onValueChange={(value) => handleInputChange("claseProceso", value)}
+                  disabled={isViewMode}
+                >
+                  <SelectTrigger className={errors.claseProceso ? "border-destructive" : ""}>
+                    <SelectValue placeholder="Seleccione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CLASE_PROCESO_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.claseProceso && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.claseProceso}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="asunto">
+                  Asunto <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={formData.asunto}
+                  onValueChange={(value) => handleInputChange("asunto", value)}
+                  disabled={isViewMode}
+                >
+                  <SelectTrigger className={errors.asunto ? "border-destructive" : ""}>
+                    <SelectValue placeholder="Seleccione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(ASUNTO_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.asunto && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.asunto}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="juzgadoConocimiento">Juzgado de Conocimiento</Label>
+                <Input
+                  id="juzgadoConocimiento"
+                  value={formData.juzgadoConocimiento}
+                  onChange={(e) => handleInputChange("juzgadoConocimiento", e.target.value)}
+                  disabled={isViewMode}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="claseProceso">
-                Clase de Proceso <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.claseProceso}
-                onValueChange={(value) => handleInputChange("claseProceso", value)}
+              <Label htmlFor="descripcionProceso">Descripción y Observaciones del Proceso</Label>
+              <Textarea
+                id="descripcionProceso"
+                placeholder="Describa brevemente el proceso y las observaciones relevantes..."
+                value={formData.descripcionProceso}
+                onChange={(e) => handleInputChange("descripcionProceso", e.target.value)}
                 disabled={isViewMode}
-              >
-                <SelectTrigger className={errors.claseProceso ? "border-destructive" : ""}>
-                  <SelectValue placeholder="Seleccione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CLASE_PROCESO_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.claseProceso && (
-                <p className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  {errors.claseProceso}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="asunto">
-                Asunto <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.asunto}
-                onValueChange={(value) => handleInputChange("asunto", value)}
-                disabled={isViewMode}
-              >
-                <SelectTrigger className={errors.asunto ? "border-destructive" : ""}>
-                  <SelectValue placeholder="Seleccione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ASUNTO_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.asunto && (
-                <p className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  {errors.asunto}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="juzgadoConocimiento">Juzgado de Conocimiento</Label>
-              <Input
-                id="juzgadoConocimiento"
-                value={formData.juzgadoConocimiento}
-                onChange={(e) => handleInputChange("juzgadoConocimiento", e.target.value)}
-                disabled={isViewMode}
+                rows={3}
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="descripcionProceso">Descripción y Observaciones del Proceso</Label>
-            <Textarea
-              id="descripcionProceso"
-              placeholder="Describa brevemente el proceso y las observaciones relevantes..."
-              value={formData.descripcionProceso}
-              onChange={(e) => handleInputChange("descripcionProceso", e.target.value)}
-              disabled={isViewMode}
-              rows={4}
-            />
-          </div>
-        </CardContent>
-      </Card>
+          <Separator />
 
-      {/* Sección 3: Etapa Preliminar */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Scale className="h-5 w-5 text-primary" />
-            Datos del Proceso - Etapa Preliminar
-          </CardTitle>
-          <CardDescription>
-            Complete la información de la etapa preliminar del proceso
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Row 1: Trámite y Concepto */}
-          <div className="grid gap-4 md:grid-cols-2">
+          {/* Etapa Preliminar */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+              <Scale className="h-4 w-4" />
+              Etapa Preliminar
+            </h4>
+            
+            {/* Row 1: Trámite y Concepto */}
+            <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="tramite">
                 Trámite <span className="text-destructive">*</span>
@@ -841,22 +842,24 @@ export function SolicitudForm({ mode = "create" }: SolicitudFormProps) {
             </div>
           </div>
 
-          {/* Row 10: Observaciones */}
-          <div className="space-y-2">
-            <Label htmlFor="observacionesEtapa" className="text-center block">Observaciones</Label>
-            <Textarea
-              id="observacionesEtapa"
-              value={etapaPreliminar.observacionesEtapa}
-              onChange={(e) => handleEtapaChange("observacionesEtapa", e.target.value)}
-              disabled={isViewMode}
-              rows={4}
-              className="resize-none"
-            />
+            {/* Row 10: Observaciones de Etapa */}
+            <div className="space-y-2">
+              <Label htmlFor="observacionesEtapa">Observaciones de la Etapa</Label>
+              <Textarea
+                id="observacionesEtapa"
+                placeholder="Observaciones adicionales sobre la etapa preliminar..."
+                value={etapaPreliminar.observacionesEtapa}
+                onChange={(e) => handleEtapaChange("observacionesEtapa", e.target.value)}
+                disabled={isViewMode}
+                rows={3}
+                className="resize-none"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Sección 4: Sancionados */}
+      {/* Sección 3: Sancionados */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

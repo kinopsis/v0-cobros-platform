@@ -287,6 +287,51 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
                   </p>
                 </div>
               )}
+
+              {/* Etapa Preliminar (si existe) */}
+              {caso.etapaPreliminar && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                      <Scale className="h-4 w-4" />
+                      Etapa Preliminar
+                    </h4>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Trámite</p>
+                        <p className="font-medium">{caso.etapaPreliminar.tramite || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Concepto</p>
+                        <p className="font-medium">{caso.etapaPreliminar.concepto || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Naturaleza</p>
+                        <p className="font-medium">{caso.etapaPreliminar.naturaleza || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Competencia</p>
+                        <p className="font-medium">{caso.etapaPreliminar.competencia || "-"}</p>
+                      </div>
+                      {caso.etapaPreliminar.cantidad && (
+                        <div className="md:col-span-2">
+                          <p className="text-sm text-muted-foreground">Cantidad</p>
+                          <p className="font-medium">
+                            {caso.etapaPreliminar.cantidad} ({caso.etapaPreliminar.tipo})
+                          </p>
+                        </div>
+                      )}
+                      {caso.etapaPreliminar.obligacion && (
+                        <div className="md:col-span-2">
+                          <p className="text-sm text-muted-foreground">Obligación</p>
+                          <p className="font-medium">{caso.etapaPreliminar.obligacion}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
