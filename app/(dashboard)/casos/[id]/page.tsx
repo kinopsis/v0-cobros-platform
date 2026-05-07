@@ -60,8 +60,11 @@ import {
   Upload,
   Gavel,
   ShieldAlert,
-  FileCheck
+  FileCheck,
+  Plus
 } from "lucide-react"
+import { EtapaPreliminarForm } from "@/components/casos/etapa-preliminar-form"
+import { mockUsuarios } from "@/lib/mock-data"
 
 const ESTADOS_ABOGADO: { value: EstadoSolicitud; label: string; icon: React.ElementType }[] = [
   { value: "EN_PROCESO", label: "En Proceso", icon: RefreshCw },
@@ -77,6 +80,7 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter()
   const [showActualizarDialog, setShowActualizarDialog] = useState(false)
   const [showCerrarDialog, setShowCerrarDialog] = useState(false)
+  const [showEtapaPreliminarDialog, setShowEtapaPreliminarDialog] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [nuevoEstado, setNuevoEstado] = useState<EstadoSolicitud | "">("")
   const [observaciones, setObservaciones] = useState("")
@@ -107,6 +111,11 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
   const logs = mockLogsAuditoria.filter(l => l.solicitudId === caso.id)
   const diasTranscurridos = differenceInDays(new Date(), caso.fechaAsignacion || caso.fechaSolicitud)
   const tieneAlerta = diasTranscurridos > 15
+  
+  // Lista de abogados para el formulario de etapa preliminar
+  const abogadosDisponibles = mockUsuarios
+    .filter(u => u.rol === "ABOGADO")
+    .map(u => ({ id: u.id, nombre: u.nombre }))
 
   const handleActualizarEstado = async () => {
     if (!nuevoEstado) {
@@ -229,10 +238,21 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
           {/* Datos del proceso */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Scale className="h-5 w-5 text-primary" />
-                Datos del Proceso
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Scale className="h-5 w-5 text-primary" />
+                  Datos del Proceso
+                </CardTitle>
+                {!isClosed && (
+                  <Button 
+                    size="sm" 
+                    onClick={() => setShowEtapaPreliminarDialog(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Agregar Etapa
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -588,6 +608,14 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Etapa Preliminar */}
+      <EtapaPreliminarForm
+        open={showEtapaPreliminarDialog}
+        onOpenChange={setShowEtapaPreliminarDialog}
+        casoId={caso.id}
+        abogados={abogadosDisponibles}
+      />
     </div>
   )
 }
