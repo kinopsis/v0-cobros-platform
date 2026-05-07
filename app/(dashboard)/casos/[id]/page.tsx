@@ -61,10 +61,9 @@ import {
   Gavel,
   ShieldAlert,
   FileCheck,
-  Plus
+  Undo2
 } from "lucide-react"
-import { EtapaPreliminarForm } from "@/components/casos/etapa-preliminar-form"
-import { mockUsuarios } from "@/lib/mock-data"
+
 
 const ESTADOS_ABOGADO: { value: EstadoSolicitud; label: string; icon: React.ElementType }[] = [
   { value: "EN_PROCESO", label: "En Proceso", icon: RefreshCw },
@@ -80,8 +79,10 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter()
   const [showActualizarDialog, setShowActualizarDialog] = useState(false)
   const [showCerrarDialog, setShowCerrarDialog] = useState(false)
-  const [showEtapaPreliminarDialog, setShowEtapaPreliminarDialog] = useState(false)
+  const [showDevolucionDialog, setShowDevolucionDialog] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [motivoDevolucion, setMotivoDevolucion] = useState("")
+  const [archivosRequeridos, setArchivosRequeridos] = useState("")
   const [nuevoEstado, setNuevoEstado] = useState<EstadoSolicitud | "">("")
   const [observaciones, setObservaciones] = useState("")
   const [radicadoJudicial, setRadicadoJudicial] = useState("")
@@ -111,11 +112,6 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
   const logs = mockLogsAuditoria.filter(l => l.solicitudId === caso.id)
   const diasTranscurridos = differenceInDays(new Date(), caso.fechaAsignacion || caso.fechaSolicitud)
   const tieneAlerta = diasTranscurridos > 15
-  
-  // Lista de abogados para el formulario de etapa preliminar
-  const abogadosDisponibles = mockUsuarios
-    .filter(u => u.rol === "ABOGADO")
-    .map(u => ({ id: u.id, nombre: u.nombre }))
 
   const handleActualizarEstado = async () => {
     if (!nuevoEstado) {
@@ -147,6 +143,29 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
     setIsUpdating(false)
     setShowActualizarDialog(false)
     setShowCerrarDialog(false)
+    router.refresh()
+  }
+
+  const handleDevolucion = async () => {
+    if (!motivoDevolucion.trim()) {
+      toast.error("Debe ingresar el motivo de la devolución")
+      return
+    }
+
+    setIsUpdating(true)
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    toast.success(
+      <div className="flex flex-col gap-1">
+        <span className="font-medium">Caso devuelto al Juzgado</span>
+        <span className="text-sm">El juzgado recibirá la notificación para realizar las correcciones.</span>
+      </div>
+    )
+    
+    setIsUpdating(false)
+    setShowDevolucionDialog(false)
+    setMotivoDevolucion("")
+    setArchivosRequeridos("")
     router.refresh()
   }
 
@@ -238,21 +257,10 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
           {/* Datos del proceso */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Scale className="h-5 w-5 text-primary" />
-                  Datos del Proceso
-                </CardTitle>
-                {!isClosed && (
-                  <Button 
-                    size="sm" 
-                    onClick={() => setShowEtapaPreliminarDialog(true)}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Agregar Etapa
-                  </Button>
-                )}
-              </div>
+              <CardTitle className="flex items-center gap-2">
+                <Scale className="h-5 w-5 text-primary" />
+                Datos del Proceso
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -526,7 +534,14 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nuevo Estado</Label>
-              <Select value={nuevoEstado} onValueChange={(v) => setNuevoEstado(v as EstadoSolicitud)}>
+              <Select value={nuevoEstado} onValueChange={(v) => {
+                if (v === "DEVOLUCION") {
+                  setShowActualizarDialog(false)
+                  setShowDevolucionDialog(true)
+                } else {
+                  setNuevoEstado(v as EstadoSolicitud)
+                }
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione..." />
                 </SelectTrigger>
@@ -539,6 +554,12 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
                       </div>
                     </SelectItem>
                   ))}
+                  <SelectItem value="DEVOLUCION">
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <Undo2 className="h-4 w-4" />
+                      Devolución al Juzgado
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -654,13 +675,84 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Etapa Preliminar */}
-      <EtapaPreliminarForm
-        open={showEtapaPreliminarDialog}
-        onOpenChange={setShowEtapaPreliminarDialog}
-        casoId={caso.id}
-        abogados={abogadosDisponibles}
-      />
+      {/* Dialog Devolución al Juzgado */}
+      <Dialog open={showDevolucionDialog} onOpenChange={setShowDevolucionDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <Undo2 className="h-5 w-5" />
+              Devolución al Juzgado
+            </DialogTitle>
+            <DialogDescription>
+              Indique el motivo de la devolución. El caso será enviado de vuelta al juzgado para su corrección.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
+              <p className="text-sm text-amber-800">
+                <strong>Caso:</strong> {caso.id}
+              </p>
+              <p className="text-sm text-amber-800">
+                <strong>Juzgado:</strong> {caso.nombreJuzgado}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="motivoDevolucion">
+                Motivo de la Devolución <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="motivoDevolucion"
+                placeholder="Describa detalladamente el motivo por el cual se devuelve el caso al juzgado..."
+                value={motivoDevolucion}
+                onChange={(e) => setMotivoDevolucion(e.target.value)}
+                rows={4}
+                className="resize-none"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="archivosRequeridos">
+                Archivos o Documentos Requeridos (opcional)
+              </Label>
+              <Textarea
+                id="archivosRequeridos"
+                placeholder="Indique los documentos o archivos que el juzgado debe adjuntar o corregir..."
+                value={archivosRequeridos}
+                onChange={(e) => setArchivosRequeridos(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDevolucionDialog(false)
+                setMotivoDevolucion("")
+                setArchivosRequeridos("")
+              }}
+              disabled={isUpdating}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="default"
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={handleDevolucion} 
+              disabled={isUpdating || !motivoDevolucion.trim()}
+            >
+              {isUpdating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Undo2 className="mr-2 h-4 w-4" />
+              )}
+              Confirmar Devolución
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
