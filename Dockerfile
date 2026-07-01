@@ -14,8 +14,9 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 # Instalar con frozen-lockfile para builds reproducibles
+# --config.ignore-scripts=true evita error de pnpm v10+ con build scripts bloqueados
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile --config.ignore-scripts=true
 
 # =============================================================================
 # Stage 2: Builder
