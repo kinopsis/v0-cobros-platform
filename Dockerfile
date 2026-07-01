@@ -20,7 +20,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json /app/pnpm-lock.yaml ./
 
-# Copiar archivos explicitamente (bypassea .dockerignore de Coolify)
 COPY app/ ./app/
 COPY components/ ./components/
 COPY lib/ ./lib/
@@ -29,9 +28,21 @@ COPY public/ ./public/
 COPY styles/ ./styles/
 COPY next.config.mjs tsconfig.json postcss.config.mjs package.json ./
 
-RUN rm -f .env.local .env .env.production
+# Regenerar archivos criticos si Coolify los excluyo del build context
+RUN mkdir -p lib/supabase && \
+    if [ ! -f lib/supabase/admin.ts ]; then \
+      printf 'import { createClient } from "@supabase/supabase-js"\nexport function createAdminClient() {\n  return createClient(\n    process.env.NEXT_PUBLIC_SUPABASE_URL!,\n    process.env.SUPABASE_SERVICE_ROLE_KEY!,\n    { auth: { autoRefreshToken: false, persistSession: false } }\n  )\n}\n' > lib/supabase/admin.ts ; \
+      echo "[fix] lib/supabase/admin.ts regenerado" ; \
+    fi && \
+    if [ ! -f lib/supabase/server.ts ]; then \
+      printf 'import { createServerClient } from "@supabase/ssr"\nimport { cookies } from "next/headers"\nexport async function createClient() {\n  const cs = await cookies()\n  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {\n    cookies: { getAll() { return cs.getAll() }, setAll(cts) { try { cts.forEach(c => cs.set(c.name, c.value, c.options)) } catch {} } }\n  })\n}\n' > lib/supabase/server.ts ; \
+      echo "[fix] lib/supabase/server.ts regenerado" ; \
+    fi && \
+    if [ ! -f lib/supabase/client.ts ]; then \
+      printf '"use client"\nimport { createBrowserClient } from "@supabase/ssr"\nexport function createClient() {\n  return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)\n}\n' > lib/supabase/client.ts ; \
+      echo "[fix] lib/supabase/client.ts regenerado" ; \
+    fi
 
-# Copiar pdf.worker manualmente (bypassea el hook prebuild que depende de scripts/)
 RUN node -e "const fs=require('fs');const p=require('path');const rp=p.dirname(require.resolve('react-pdf/package.json'));const ws=p.join(rp,'node_modules','pdfjs-dist','build','pdf.worker.min.mjs');fs.mkdirSync('public',{recursive:true});if(fs.existsSync(ws)){fs.copyFileSync(ws,'public/pdf.worker.min.mjs');console.log('Worker copiado')}else{console.warn('Worker no encontrado, se usara fallback')}"
 
 RUN pnpm next build
