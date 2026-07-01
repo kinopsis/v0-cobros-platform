@@ -40,8 +40,11 @@ docker-compose*.yml
 package-lock.json
 yarn.lock
 
-# Scripts de seed/test
-scripts/
+# Scripts de seed/test (no necesarios para build)
+scripts/seed-*.ts
+scripts/test-*.ts
+scripts/*.sql
+scripts/gen-sample-pdfs.js
 
 # Public docs (PDFs de muestra)
 public/docs/
