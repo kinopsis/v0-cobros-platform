@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# Environment files — NUNCA en la imagen
+.env
+.env.*
+!.env.local.example
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Documentation (no necesaria en runtime)
+*.md
+README.md
+
+# CSV data files
+*.csv
+
+# Docker (evitar recursion)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Lockfiles no usados
+package-lock.json
+yarn.lock
+
+# Scripts de seed/test
+scripts/
+
+# Public docs (PDFs de muestra)
+public/docs/
