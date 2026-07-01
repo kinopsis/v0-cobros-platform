@@ -24,7 +24,10 @@ COPY . .
 
 RUN rm -f .env.local .env .env.production
 
-RUN pnpm build
+# Copiar pdf.worker manualmente (bypassea el hook prebuild que depende de scripts/)
+RUN node -e "const fs=require('fs');const p=require('path');const rp=p.dirname(require.resolve('react-pdf/package.json'));const ws=p.join(rp,'node_modules','pdfjs-dist','build','pdf.worker.min.mjs');fs.mkdirSync('public',{recursive:true});if(fs.existsSync(ws)){fs.copyFileSync(ws,'public/pdf.worker.min.mjs');console.log('Worker copiado')}else{console.warn('Worker no encontrado, se usara fallback')}"
+
+RUN pnpm next build
 
 FROM node:22-alpine AS runner
 
