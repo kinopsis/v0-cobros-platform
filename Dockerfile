@@ -27,7 +27,7 @@ COPY lib/ ./lib/
 COPY hooks/ ./hooks/
 COPY public/ ./public/
 COPY styles/ ./styles/
-COPY next.config.mjs tsconfig.json postcss.config.mjs proxy.ts package.json ./
+COPY next.config.mjs tsconfig.json postcss.config.mjs package.json ./
 
 RUN rm -f .env.local .env .env.production
 
