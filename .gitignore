@@ -6,6 +6,39 @@ __v0_jsx-dev-runtime.ts
 # Common ignores
 node_modules/
 .next/
-.env*.local
+out/
+build/
+dist/
+
+# Environment files (secretos NUNCA commiteados)
+.env
+.env.*
+!.env.local.example
+
+# CSV data files (datos sensibles)
+*.csv
+
+# Docker Compose (no necesario para Coolify standalone Dockerfile)
+docker-compose*.yml
+
+# IDE / OS
 .DS_Store
+Thumbs.db
 .vercel
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
