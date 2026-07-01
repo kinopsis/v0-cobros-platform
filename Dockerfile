@@ -20,7 +20,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json /app/pnpm-lock.yaml ./
 
-COPY . .
+# Copiar archivos explicitamente (bypassea .dockerignore de Coolify)
+COPY app/ ./app/
+COPY components/ ./components/
+COPY lib/ ./lib/
+COPY hooks/ ./hooks/
+COPY public/ ./public/
+COPY styles/ ./styles/
+COPY next.config.mjs tsconfig.json postcss.config.mjs proxy.ts package.json ./
 
 RUN rm -f .env.local .env .env.production
 
