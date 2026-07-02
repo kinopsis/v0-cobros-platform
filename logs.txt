@@ -1,0 +1,45 @@
+2026-Jul-02 00:12:05.431427 Docker 27.5.1 with BuildKit and Buildx detected on deployment server (localhost).
+2026-Jul-02 00:12:05.440618 Starting deployment of kinopsis/v0-cobros-platform:main to localhost.
+2026-Jul-02 00:12:05.617329 Preparing container with helper image: ghcr.io/coollabsio/coolify-helper:1.0.14
+2026-Jul-02 00:12:06.732617 ----------------------------------------
+2026-Jul-02 00:12:06.744108 Importing kinopsis/v0-cobros-platform:main (commit sha ba52d9399118c00e2602202819aacbccd598e56d) to /artifacts/n4ft7rtyxebih7sn2l345jbu.
+2026-Jul-02 00:12:10.106040 ----------------------------------------
+2026-Jul-02 00:12:10.115101 Building docker image started.
+2026-Jul-02 00:12:10.124064 To check the current progress, click on Show Debug Logs.
+2026-Jul-02 00:13:12.006780 Building docker image completed.
+2026-Jul-02 00:13:12.373110 ----------------------------------------
+2026-Jul-02 00:13:12.384425 Rolling update started.
+2026-Jul-02 00:13:13.069570 New container started.
+2026-Jul-02 00:13:13.078450 Custom healthcheck found in Dockerfile.
+2026-Jul-02 00:13:13.088145 Waiting for healthcheck to pass on the new container.
+2026-Jul-02 00:13:13.098276 Waiting for the start period (10 seconds) before starting healthcheck.
+2026-Jul-02 00:13:23.329018 Attempt 1 of 3 | Healthcheck status: "starting"
+2026-Jul-02 00:13:23.346078 Healthcheck logs: Connecting to 127.0.0.1:3000 (127.0.0.1:3000)
+2026-Jul-02 00:13:23.346078 wget: server returned error: HTTP/1.1 404 Not Found
+2026-Jul-02 00:13:23.346078 | Return code: 1
+2026-Jul-02 00:13:53.591190 Attempt 2 of 3 | Healthcheck status: "starting"
+2026-Jul-02 00:13:53.599958 Healthcheck logs: Connecting to 127.0.0.1:3000 (127.0.0.1:3000)
+2026-Jul-02 00:13:53.599958 wget: server returned error: HTTP/1.1 404 Not Found
+2026-Jul-02 00:13:53.599958 | Return code: 1
+2026-Jul-02 00:14:23.869887 Attempt 3 of 3 | Healthcheck status: "unhealthy"
+2026-Jul-02 00:14:23.879666 Healthcheck logs: Connecting to 127.0.0.1:3000 (127.0.0.1:3000)
+2026-Jul-02 00:14:23.879666 wget: server returned error: HTTP/1.1 404 Not Found
+2026-Jul-02 00:14:23.879666 | Return code: 1
+2026-Jul-02 00:14:23.891076 New container is unhealthy.
+2026-Jul-02 00:14:23.901251 ----------------------------------------
+2026-Jul-02 00:14:23.916745 Container logs:
+2026-Jul-02 00:14:24.059305 [CMD]: docker logs -n 100 wlid1mz1jxcxtdvfojvleu5c-001203663733
+2026-Jul-02 00:14:24.059305 ▲ Next.js 16.1.6
+2026-Jul-02 00:14:24.059305 - Local: http://localhost:3000
+2026-Jul-02 00:14:24.059305 - Network: http://0.0.0.0:3000
+2026-Jul-02 00:14:24.059305
+2026-Jul-02 00:14:24.059305 ✓ Starting...
+2026-Jul-02 00:14:24.059305 ✓ Ready in 123ms
+2026-Jul-02 00:14:24.066364 ----------------------------------------
+2026-Jul-02 00:14:24.076213 Removing old containers.
+2026-Jul-02 00:14:24.086355 ----------------------------------------
+2026-Jul-02 00:14:24.094678 WARNING: Dockerfile or Docker Image based deployment detected. The healthcheck needs a curl or wget command to check the health of the application. Please make sure that it is available in the image or turn off healthcheck on Coolify's UI.
+2026-Jul-02 00:14:24.102143 ----------------------------------------
+2026-Jul-02 00:14:24.111527 New container is not healthy, rolling back to the old container.
+2026-Jul-02 00:14:24.533536 Rolling update completed.
+2026-Jul-02 00:14:24.828242 Gracefully shutting down build container: n4ft7rtyxebih7sn2l345jbu

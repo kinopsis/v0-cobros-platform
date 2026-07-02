@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { mockSolicitudes, mockLogsAuditoria } from "@/lib/mock-data"
+import { Solicitud } from "@/lib/types"
 import { 
   ESTADO_LABELS, 
   ESTADO_COLORS, 
@@ -40,6 +40,8 @@ import {
 import { format, differenceInDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
+import { DocumentViewerDialog } from "@/components/pdf-viewer/document-viewer-dialog"
+import { useAuth } from "@/lib/auth-context"
 import { 
   ArrowLeft, 
   Building2, 
@@ -61,22 +63,27 @@ import {
   Gavel,
   ShieldAlert,
   FileCheck,
-  Undo2
+  Undo2,
+  XCircle
 } from "lucide-react"
 
 
 const ESTADOS_ABOGADO: { value: EstadoSolicitud; label: string; icon: React.ElementType }[] = [
-  { value: "EN_PROCESO", label: "En Proceso", icon: RefreshCw },
-  { value: "MANDAMIENTO_DE_PAGO", label: "Mandamiento de Pago", icon: Gavel },
-  { value: "MEDIDAS_CAUTELARES", label: "Medidas Cautelares", icon: ShieldAlert },
-  { value: "RADICADO_SISTEMA_JUSTICIA", label: "Radicado Sistema Justicia", icon: FileCheck },
-  { value: "CERRADA", label: "Cerrada", icon: CheckCircle2 },
-  { value: "TERMINADA_SIN_PAGO", label: "Terminada sin Pago", icon: AlertCircle },
+  { value: "ASIGNADA_A_ABOGADO", label: "Asignada a Abogado", icon: RefreshCw },
+  { value: "RADICADA_EN_GCC", label: "Radicada en GCC", icon: FileCheck },
+  { value: "DEVUELTA_POR_ABOGADO", label: "Devuelta por Abogado", icon: Undo2 },
 ]
 
 export default function CasoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
+  const { user } = useAuth()
+
+  const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [logs, setLogs] = useState<any[]>([])
+
   const [showActualizarDialog, setShowActualizarDialog] = useState(false)
   const [showCerrarDialog, setShowCerrarDialog] = useState(false)
   const [showDevolucionDialog, setShowDevolucionDialog] = useState(false)
@@ -88,10 +95,87 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
   const [radicadoJudicial, setRadicadoJudicial] = useState("")
   const [resultado, setResultado] = useState("")
   const [montoRecuperado, setMontoRecuperado] = useState("")
+  const [viewingDoc, setViewingDoc] = useState<{ nombre: string; url: string; tipo?: string } | null>(null)
 
-  const caso = mockSolicitudes.find(s => s.id === id)
-  
-  if (!caso) {
+  // Cargar caso desde API
+  useEffect(() => {
+    async function fetchCaso() {
+      try {
+        const res = await fetch(`/api/solicitudes/${id}`)
+        if (!res.ok) throw new Error("No encontrado")
+        const json = await res.json()
+        const d = json.data
+        setSolicitud({
+          id: d.id,
+          fechaSolicitud: new Date(d.fecha_solicitud),
+          codigoDespacho: d.codigo_despacho,
+          nombreJuzgado: d.nombre_juzgado,
+          funcionarioRemitente: d.funcionario_remitente,
+          correoInstitucional: d.correo_institucional,
+          telefonoDespacho: d.telefono_despacho,
+          ciudadDespacho: d.ciudad_despacho,
+          radicadoOrigen: d.radicado_origen,
+          claseProceso: d.clase_proceso,
+          asunto: d.asunto,
+          juzgadoConocimiento: d.juzgado_conocimiento,
+          descripcionProceso: d.descripcion_proceso,
+          estado: d.estado,
+          radicadoSIGOBIUS: d.radicado_sigobius,
+          abogadoAsignadoId: d.abogado_asignado_id,
+          fechaAsignacion: d.fecha_asignacion ? new Date(d.fecha_asignacion) : undefined,
+          fechaCierre: d.fecha_cierre ? new Date(d.fecha_cierre) : undefined,
+          radicadoSistemaJusticia: d.radicado_sistema_justicia,
+          observaciones: d.observaciones,
+          motivoDevolucion: d.motivo_devolucion,
+          prioridad: d.prioridad || "MEDIA",
+          diasSLA: d.dias_sla || 10,
+          resultado: d.resultado,
+          montoRecuperado: d.monto_recuperado,
+          etapaPreliminar: d.etapa_preliminar,
+          sancionados: (d.sancionados || []).map((s: any) => ({
+            id: s.id,
+            nombreCompleto: s.nombre_completo,
+            tipoDocumento: s.tipo_documento,
+            numeroDocumento: s.numero_documento,
+            tipoPersona: s.tipo_persona,
+          })),
+          documentosAdjuntos: (d.documentos_adjuntos || []).map((doc: any) => ({
+            id: doc.id,
+            nombre: doc.nombre,
+            tipo: doc.tipo,
+            url: doc.url,
+            fechaCarga: new Date(doc.fecha_carga),
+            esObligatorio: doc.es_obligatorio || false,
+          })),
+        })
+      } catch (err: any) {
+        setError(err.message || "Error al cargar el caso")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchCaso()
+  }, [id])
+
+  // Cargar logs de auditoría
+  useEffect(() => {
+    if (solicitud) {
+      fetch(`/api/auditoria?solicitud_id=${solicitud.id}`)
+        .then(r => r.json())
+        .then(j => setLogs(j.data || []))
+        .catch(() => setLogs([]))
+    }
+  }, [solicitud])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (error || !solicitud) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
@@ -109,7 +193,7 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
     )
   }
 
-  const logs = mockLogsAuditoria.filter(l => l.solicitudId === caso.id)
+  const caso = solicitud
   const diasTranscurridos = differenceInDays(new Date(), caso.fechaAsignacion || caso.fechaSolicitud)
   const tieneAlerta = diasTranscurridos > 15
 
@@ -118,32 +202,45 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
       toast.error("Debe seleccionar un estado")
       return
     }
-
-    // Validaciones específicas por estado
     if (nuevoEstado === "RADICADO_SISTEMA_JUSTICIA" && !radicadoJudicial) {
       toast.error("Debe ingresar el radicado del sistema de justicia")
       return
     }
-
     if ((nuevoEstado === "CERRADA" || nuevoEstado === "TERMINADA_SIN_PAGO") && !resultado) {
       toast.error("Debe indicar el resultado del proceso")
       return
     }
-
     setIsUpdating(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    toast.success(
-      <div className="flex flex-col gap-1">
-        <span className="font-medium">Estado actualizado</span>
-        <span className="text-sm">Nuevo estado: {ESTADO_LABELS[nuevoEstado]}</span>
-      </div>
-    )
-    
-    setIsUpdating(false)
-    setShowActualizarDialog(false)
-    setShowCerrarDialog(false)
-    router.refresh()
+    try {
+      const body: any = {
+        estado: nuevoEstado,
+        observaciones: observaciones || `Estado actualizado a ${ESTADO_LABELS[nuevoEstado]}`,
+      }
+      if (nuevoEstado === "RADICADO_SISTEMA_JUSTICIA") {
+        body.radicado_sistema_justicia = radicadoJudicial
+      }
+      if (nuevoEstado === "CERRADA" || nuevoEstado === "TERMINADA_SIN_PAGO") {
+        body.resultado = resultado
+        body.fecha_cierre = new Date().toISOString()
+        if (montoRecuperado) body.monto_recuperado = parseFloat(montoRecuperado)
+      }
+      const res = await fetch(`/api/solicitudes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error("Error al actualizar")
+      toast.success("Estado actualizado", {
+        description: `Nuevo estado: ${ESTADO_LABELS[nuevoEstado]}`,
+      })
+      router.refresh()
+    } catch (err: any) {
+      toast.error("Error al actualizar", { description: err.message })
+    } finally {
+      setIsUpdating(false)
+      setShowActualizarDialog(false)
+      setShowCerrarDialog(false)
+    }
   }
 
   const handleDevolucion = async () => {
@@ -151,22 +248,32 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
       toast.error("Debe ingresar el motivo de la devolución")
       return
     }
-
     setIsUpdating(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    toast.success(
-      <div className="flex flex-col gap-1">
-        <span className="font-medium">Caso devuelto al Juzgado</span>
-        <span className="text-sm">El juzgado recibirá la notificación para realizar las correcciones.</span>
-      </div>
-    )
-    
-    setIsUpdating(false)
-    setShowDevolucionDialog(false)
-    setMotivoDevolucion("")
-    setArchivosRequeridos("")
-    router.refresh()
+    try {
+      const res = await fetch(`/api/solicitudes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estado: "DEVUELTA_AL_JUZGADO",
+          motivo_devolucion: motivoDevolucion.trim(),
+          motivo_devolucion_abogado: motivoDevolucion.trim(),
+          archivos_requeridos: archivosRequeridos.trim() || null,
+          observaciones: `Devuelto por abogado: ${motivoDevolucion.trim()}`,
+        }),
+      })
+      if (!res.ok) throw new Error("Error al devolver")
+      toast.success("Caso devuelto al Juzgado", {
+        description: "El juzgado recibirá la notificación para realizar las correcciones.",
+      })
+      router.refresh()
+    } catch (err: any) {
+      toast.error("Error al devolver", { description: err.message })
+    } finally {
+      setIsUpdating(false)
+      setShowDevolucionDialog(false)
+      setMotivoDevolucion("")
+      setArchivosRequeridos("")
+    }
   }
 
   const isClosed = caso.estado === "CERRADA" || caso.estado === "TERMINADA_SIN_PAGO"
@@ -404,9 +511,16 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
                         </p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm">
-                      <Download className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setViewingDoc({ nombre: doc.nombre, url: doc.url, tipo: doc.tipo })}>
+                        Ver
+                      </Button>
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={doc.url} download={doc.nombre} target="_blank" rel="noopener noreferrer">
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -501,10 +615,10 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
                       <p className="text-xs text-muted-foreground">
                         {format(log.timestamp, "d MMM yyyy HH:mm", { locale: es })}
                       </p>
-                      <p className="text-sm font-medium">{log.tipoAccion}</p>
-                      {log.estadoNuevo && (
-                        <Badge className={`mt-1 text-xs ${ESTADO_COLORS[log.estadoNuevo]}`}>
-                          {ESTADO_LABELS[log.estadoNuevo]}
+                      <p className="text-sm font-medium">{log.tipo_accion || log.tipoAccion}</p>
+                      {log.estado_nuevo && (
+                        <Badge className={`mt-1 text-xs ${ESTADO_COLORS[log.estado_nuevo as keyof typeof ESTADO_COLORS] || ''}`}>
+                          {ESTADO_LABELS[log.estado_nuevo as keyof typeof ESTADO_LABELS] || log.estado_nuevo}
                         </Badge>
                       )}
                       {log.observaciones && (
@@ -674,6 +788,12 @@ export default function CasoDetailPage({ params }: { params: Promise<{ id: strin
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DocumentViewerDialog
+        open={!!viewingDoc}
+        onOpenChange={(o) => !o && setViewingDoc(null)}
+        document={viewingDoc}
+      />
 
       {/* Dialog Devolución al Juzgado */}
       <Dialog open={showDevolucionDialog} onOpenChange={setShowDevolucionDialog}>

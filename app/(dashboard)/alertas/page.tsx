@@ -70,7 +70,7 @@ export default function AlertasPage() {
       </div>
 
       {/* Alert Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Total Alertas</CardTitle>

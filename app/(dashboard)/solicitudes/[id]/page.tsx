@@ -1,15 +1,21 @@
 "use client"
 
-import { use } from "react"
+import { use, useState, useEffect, Suspense } from "react";
 import Link from "next/link"
+import { useSearchParams, useRouter } from "next/navigation"
+import { DocumentViewerDialog } from "@/components/pdf-viewer/document-viewer-dialog"
+import { WorkflowDialogs } from "@/components/solicitudes/workflow-dialogs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { mockSolicitudes, getUsuarioById, mockLogsAuditoria } from "@/lib/mock-data"
+import { useAuth } from "@/lib/auth-context"
+import { Solicitud } from "@/lib/types"
 import { 
   ESTADO_LABELS, 
   ESTADO_COLORS, 
+  NATURALEZA_LABELS,
+  CONCEPTO_LABELS,
   CLASE_PROCESO_LABELS,
   ASUNTO_LABELS,
   TIPO_DOCUMENTO_LABELS,
@@ -19,6 +25,8 @@ import {
 } from "@/lib/types"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { toast } from "sonner"
+import { convertirSancionACOP, formatCOP } from "@/lib/utils"
 import { 
   ArrowLeft, 
   Building2, 
@@ -33,14 +41,163 @@ import {
   Phone,
   Mail,
   MapPin,
-  Scale
+  Scale,
+  Loader2,
+  XCircle,
+  UserPlus
 } from "lucide-react"
 
-export default function SolicitudDetailPage({ params }: { params: Promise<{ id: string }> }) {
+function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const solicitud = mockSolicitudes.find(s => s.id === id)
-  
-  if (!solicitud) {
+  const { user } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const actionParam = searchParams.get("action") as "aprobar" | "devolver" | "asignar" | null
+
+  const [viewingDoc, setViewingDoc] = useState<{ nombre: string; url: string; tipo?: string } | null>(null)
+  const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Estados para flujo de trabajo (GESTOR y ABOGADO)
+  const [workflowDialog, setWorkflowDialog] = useState<"aprobar" | "devolver" | "asignar" | "reasignar" | "radicar_gcc" | "devolver_abogado" | null>(actionParam)
+  const [abogados, setAbogados] = useState<any[]>([])
+
+  const isGestor = user?.rol === "GESTOR"
+  const isAbogado = user?.rol === "ABOGADO"
+
+  useEffect(() => {
+    async function fetchSolicitud() {
+      try {
+        const res = await fetch(`/api/solicitudes/${id}`)
+        if (!res.ok) throw new Error("No encontrada")
+        const json = await res.json()
+        const d = json.data
+        // Mapear snake_case a camelCase
+        setSolicitud({
+          id: d.id,
+          fechaSolicitud: new Date(d.fecha_solicitud),
+          codigoDespacho: d.codigo_despacho,
+          nombreJuzgado: d.nombre_juzgado,
+          funcionarioRemitente: d.funcionario_remitente,
+          correoInstitucional: d.correo_institucional,
+          telefonoDespacho: d.telefono_despacho,
+          ciudadDespacho: d.ciudad_despacho,
+          radicadoOrigen: d.radicado_origen,
+          naturaleza: d.naturaleza || d.clase_proceso,
+          concepto: d.concepto || d.asunto,
+          juzgadoConocimiento: d.juzgado_conocimiento,
+          descripcionProceso: d.descripcion_proceso,
+          estado: d.estado,
+          radicadoSIGOBIUS: d.radicado_sigobius,
+          abogadoAsignadoId: d.abogado_asignado_id,
+          abogadoAsignado: d.abogado ? { id: d.abogado.id, nombre: d.abogado.nombre, email: d.abogado.email, rol: "ABOGADO", activo: true } : undefined,
+          fechaRadicacion: d.fecha_radicacion ? new Date(d.fecha_radicacion) : undefined,
+          fechaAsignacion: d.fecha_asignacion ? new Date(d.fecha_asignacion) : undefined,
+          fechaCierre: d.fecha_cierre ? new Date(d.fecha_cierre) : undefined,
+          radicadoSistemaJusticia: d.radicado_sistema_justicia,
+          observaciones: d.observaciones,
+          motivoDevolucion: d.motivo_devolucion,
+          prioridad: d.prioridad || "MEDIA",
+          diasSLA: d.dias_sla || 10,
+          montoRecuperado: d.monto_recuperado,
+          sancionados: (d.sancionados || []).map((s: any) => ({
+            id: s.id,
+            nombreCompleto: s.nombre_completo,
+            tipoDocumento: s.tipo_documento,
+            numeroDocumento: s.numero_documento,
+            tipoPersona: s.tipo_persona,
+            tipoSancion: s.tipo_sancion,
+            cantidadSancion: s.cantidad_sancion,
+          })),
+          documentosAdjuntos: (d.documentos_adjuntos || []).map((doc: any) => ({
+            id: doc.id,
+            nombre: doc.nombre,
+            tipo: doc.tipo,
+            url: doc.url,
+            fechaCarga: new Date(doc.fecha_carga),
+            esObligatorio: doc.es_obligatorio || false,
+          })),
+        })
+      } catch (err: any) {
+        setError(err.message || "Error al cargar la solicitud")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchSolicitud()
+  }, [id])
+
+  const abogado = solicitud?.abogadoAsignado || null
+  const [logs, setLogs] = useState<any[]>([])
+
+  useEffect(() => {
+    if (solicitud) {
+      fetch(`/api/auditoria?solicitud_id=${solicitud.id}`)
+        .then(r => r.json())
+        .then(j => setLogs(j.data || []))
+        .catch(() => setLogs([]))
+    }
+  }, [solicitud])
+
+  // Cargar abogados para GESTOR
+  useEffect(() => {
+    if (isGestor) {
+      fetch("/api/abogados")
+        .then(r => r.json())
+        .then(j => setAbogados(j.data || []))
+        .catch(() => setAbogados([]))
+    }
+  }, [isGestor])
+
+  // Descargar comprobante
+  const handleDescargarComprobante = () => {
+    if (!solicitud) return
+    const docs = solicitud.documentosAdjuntos
+    if (docs && docs.length > 0) {
+      // Usar el primer documento como comprobante
+      const doc = docs[0]
+      window.open(doc.url, "_blank", "noopener,noreferrer")
+    } else {
+      toast.info("Sin comprobante", {
+        description: "Esta solicitud no tiene documentos adjuntos para descargar como comprobante.",
+      })
+    }
+  }
+
+  // Corregir y reenviar (JUZGADO)
+  const handleCorregirYReenviar = async () => {
+    if (!solicitud) return
+    const nuevoEstado = "EN_VALIDACION"
+
+    try {
+      const res = await fetch(`/api/solicitudes/${solicitud.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estado: nuevoEstado,
+          motivo_devolucion: null,
+          motivo_devolucion_abogado: null,
+          observaciones: "Corregido por el juzgado — enviado a validación del gestor",
+        }),
+      })
+      if (!res.ok) throw new Error("Error al reenviar")
+      toast.success("Solicitud enviada a validación del gestor")
+      router.refresh()
+    } catch (err: any) {
+      toast.error("Error al reenviar", { description: err.message })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (error || !solicitud) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
@@ -57,12 +214,6 @@ export default function SolicitudDetailPage({ params }: { params: Promise<{ id: 
       </div>
     )
   }
-
-  const abogado = solicitud.abogadoAsignadoId 
-    ? getUsuarioById(solicitud.abogadoAsignadoId) 
-    : null
-
-  const logs = mockLogsAuditoria.filter(l => l.solicitudId === solicitud.id)
 
   return (
     <div className="space-y-6">
@@ -87,37 +238,90 @@ export default function SolicitudDetailPage({ params }: { params: Promise<{ id: 
               </Badge>
             </div>
             <p className="text-muted-foreground mt-1">
-              {CLASE_PROCESO_LABELS[solicitud.claseProceso]} - {ASUNTO_LABELS[solicitud.asunto]}
+              {NATURALEZA_LABELS[solicitud.naturaleza as keyof typeof NATURALEZA_LABELS] || CLASE_PROCESO_LABELS[solicitud.naturaleza as keyof typeof CLASE_PROCESO_LABELS] || solicitud.naturaleza} - {CONCEPTO_LABELS[solicitud.concepto as keyof typeof CONCEPTO_LABELS] || ASUNTO_LABELS[solicitud.concepto as keyof typeof ASUNTO_LABELS] || solicitud.concepto}
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={handleDescargarComprobante}>
             <Download className="mr-2 h-4 w-4" />
             Descargar Comprobante
           </Button>
+          {isGestor && solicitud.estado === "EN_VALIDACION" && (
+            <>
+              <Button 
+                variant="outline" 
+                className="text-destructive hover:text-destructive"
+                onClick={() => setWorkflowDialog("devolver")}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver
+              </Button>
+              <Button onClick={() => setWorkflowDialog("aprobar")}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Aprobar y Radicar
+              </Button>
+            </>
+          )}
+          {isGestor && solicitud.estado === "RADICADA_EN_SIGOBIUS" && (
+            <Button onClick={() => setWorkflowDialog("asignar")}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Asignar Abogado
+            </Button>
+          )}
+          {isAbogado && solicitud.estado === "ASIGNADA_A_ABOGADO" && (
+            <>
+              <Button 
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setWorkflowDialog("devolver_abogado")}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver
+              </Button>
+              <Button onClick={() => setWorkflowDialog("radicar_gcc")}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Radicar en GCC
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Alerta de devolución */}
-      {solicitud.estado === "DEVUELTA" && (
+      {(solicitud.estado === "DEVUELTA_POR_GESTOR" || solicitud.estado === "DEVUELTA_POR_ABOGADO") && (() => {
+        const ultimaDevolucion = logs.find(
+          (log: any) => log.tipo_accion === "CAMBIO_ESTADO" && (log.estado_nuevo === "DEVUELTA_POR_GESTOR" || log.estado_nuevo === "DEVUELTA_POR_ABOGADO")
+        )
+        return (
         <Card className="border-destructive/50 bg-destructive/5">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertCircle className="h-5 w-5" />
-              Solicitud Devuelta
+              Solicitud Devuelta {solicitud.estado === "DEVUELTA_POR_ABOGADO" ? "por Abogado" : "por Gestor"}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm">{solicitud.motivoDevolucion}</p>
-            <Button className="mt-4" asChild>
-              <Link href={`/solicitudes/${solicitud.id}/corregir`}>
+            <p className="text-sm">{solicitud.motivoDevolucion || "Sin motivo especificado"}</p>
+            {ultimaDevolucion && (
+              <div className="mt-4 space-y-2 text-sm text-muted-foreground border-t pt-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>Devuelto por: <strong>{ultimaDevolucion.usuario?.nombre || "Gestor"}</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Fecha: {format(new Date(ultimaDevolucion.timestamp), "d MMM yyyy HH:mm", { locale: es })}</span>
+                </div>
+              </div>
+            )}
+            <Button className="mt-4" onClick={handleCorregirYReenviar}>
                 Corregir y Reenviar
-              </Link>
             </Button>
           </CardContent>
         </Card>
-      )}
+        )
+      })()}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Información principal */}
@@ -143,12 +347,12 @@ export default function SolicitudDetailPage({ params }: { params: Promise<{ id: 
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Clase de Proceso</p>
-                  <Badge variant="outline">{CLASE_PROCESO_LABELS[solicitud.claseProceso]}</Badge>
+                  <p className="text-sm text-muted-foreground">Naturaleza</p>
+                  <Badge variant="outline">{NATURALEZA_LABELS[solicitud.naturaleza as keyof typeof NATURALEZA_LABELS] || CLASE_PROCESO_LABELS[solicitud.naturaleza as keyof typeof CLASE_PROCESO_LABELS] || solicitud.naturaleza}</Badge>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Asunto</p>
-                  <p className="font-medium">{ASUNTO_LABELS[solicitud.asunto]}</p>
+                  <p className="text-sm text-muted-foreground">Concepto</p>
+                  <p className="font-medium">{CONCEPTO_LABELS[solicitud.concepto as keyof typeof CONCEPTO_LABELS] || ASUNTO_LABELS[solicitud.concepto as keyof typeof ASUNTO_LABELS] || solicitud.concepto}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Juzgado de Conocimiento</p>
@@ -168,6 +372,28 @@ export default function SolicitudDetailPage({ params }: { params: Promise<{ id: 
                     {solicitud.descripcionProceso}
                   </p>
                 </div>
+              )}
+
+              {/* Fechas del Proceso */}
+              {solicitud.etapaPreliminar && (solicitud.etapaPreliminar.providencia || solicitud.etapaPreliminar.ejecutoria) && (
+                <>
+                  <Separator className="my-4" />
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Fechas del Proceso</h4>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {solicitud.etapaPreliminar.providencia && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Fecha Providencia</p>
+                        <p className="font-medium">{format(new Date(solicitud.etapaPreliminar.providencia), "d MMM yyyy", { locale: es })}</p>
+                      </div>
+                    )}
+                    {solicitud.etapaPreliminar.ejecutoria && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Fecha Ejecutoria</p>
+                        <p className="font-medium">{format(new Date(solicitud.etapaPreliminar.ejecutoria), "d MMM yyyy", { locale: es })}</p>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -198,6 +424,23 @@ export default function SolicitudDetailPage({ params }: { params: Promise<{ id: 
                         {TIPO_PERSONA_LABELS[sancionado.tipoPersona]}
                       </Badge>
                     </div>
+                    {(sancionado.tipoSancion || sancionado.cantidadSancion) && (
+                      <div className="mt-2 pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">Valor Sanción</p>
+                        <p className="text-sm font-medium">
+                          {sancionado.tipoSancion === "SMMLV" && (
+                            <span className="text-xs text-muted-foreground mr-1">
+                              {sancionado.cantidadSancion} SMMLV →
+                            </span>
+                          )}
+                          {formatCOP(convertirSancionACOP(
+                            sancionado.cantidadSancion,
+                            sancionado.tipoSancion,
+                            solicitud.etapaPreliminar?.ejecutoria
+                          ))}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -228,19 +471,51 @@ export default function SolicitudDetailPage({ params }: { params: Promise<{ id: 
                         </p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm">
-                      <Download className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setViewingDoc({ nombre: doc.nombre, url: doc.url, tipo: doc.tipo })}>
+                        Ver
+                      </Button>
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={doc.url} download={doc.nombre} target="_blank" rel="noopener noreferrer">
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
+
+          {/* Etapa Preliminar */}
+          {solicitud.etapaPreliminar && Object.entries(solicitud.etapaPreliminar).filter(([, v]) => v !== null && v !== undefined && v !== "").length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Scale className="h-5 w-5 text-primary" />
+                  Etapa Preliminar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {Object.entries(solicitud.etapaPreliminar)
+                    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <p className="text-sm text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                        <p className="font-medium">{typeof value === 'boolean' ? (value ? 'Sí' : 'No') : String(value)}</p>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Panel lateral */}
         <div className="space-y-6">
-          {/* Despacho remitente */}
+          {/* Despacho remitente — oculto para JUZGADO (es su propio despacho) */}
+          {user?.rol !== "JUZGADO" && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -276,6 +551,7 @@ export default function SolicitudDetailPage({ params }: { params: Promise<{ id: 
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Abogado asignado */}
           {abogado && (
@@ -375,6 +651,38 @@ export default function SolicitudDetailPage({ params }: { params: Promise<{ id: 
           </Card>
         </div>
       </div>
+
+      <DocumentViewerDialog
+        open={!!viewingDoc}
+        onOpenChange={(o) => !o && setViewingDoc(null)}
+        document={viewingDoc}
+      />
+
+      {/* Diálogos de flujo de trabajo (GESTOR y ABOGADO) */}
+      {(isGestor || isAbogado) && solicitud && (
+        <WorkflowDialogs
+          solicitudId={solicitud.id}
+          radicadoOrigen={solicitud.radicadoOrigen}
+          claseProceso={solicitud.naturaleza}
+          estado={solicitud.estado}
+          abogados={abogados}
+          openDialog={workflowDialog}
+          onOpenChange={setWorkflowDialog}
+          userRol={user?.rol}
+        />
+      )}
     </div>
+  )
+}
+
+export default function SolicitudDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <SolicitudDetailContent params={params} />
+    </Suspense>
   )
 }

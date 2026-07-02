@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,13 +22,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { mockSolicitudes, mockUsuarios } from "@/lib/mock-data"
 import { 
   ESTADO_LABELS, 
   ESTADO_COLORS, 
   CLASE_PROCESO_LABELS,
   PRIORIDAD_LABELS,
-  PRIORIDAD_COLORS
+  PRIORIDAD_COLORS,
+  EstadoSolicitud,
+  Prioridad
 } from "@/lib/types"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -43,29 +44,76 @@ import {
   FileText,
   AlertTriangle,
   Calendar,
-  ArrowUpRight
+  ArrowUpRight,
+  Loader2
 } from "lucide-react"
+
+interface SolicitudGestion {
+  id: string
+  fechaSolicitud: Date
+  nombreJuzgado: string
+  claseProceso: string
+  sancionados: Array<{ nombreCompleto: string; tipoDocumento: string; numeroDocumento: string }>
+  estado: EstadoSolicitud
+  prioridad: Prioridad
+  diasSLA: number
+  radicadoOrigen: string
+}
 
 export default function GestionPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("pendientes")
+  const [solicitudes, setSolicitudes] = useState<SolicitudGestion[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Cargar solicitudes desde API real
+  useEffect(() => {
+    async function fetchSolicitudes() {
+      try {
+        const res = await fetch("/api/solicitudes")
+        if (!res.ok) throw new Error("Error al cargar solicitudes")
+        const json = await res.json()
+        const mapped: SolicitudGestion[] = (json.data || []).map((s: any) => ({
+          id: s.id,
+          fechaSolicitud: new Date(s.fecha_solicitud),
+          nombreJuzgado: s.nombre_juzgado || "",
+          claseProceso: s.clase_proceso || "",
+          sancionados: (s.sancionados || []).map((san: any) => ({
+            nombreCompleto: san.nombre_completo,
+            tipoDocumento: san.tipo_documento,
+            numeroDocumento: san.numero_documento,
+          })),
+          estado: s.estado as EstadoSolicitud,
+          prioridad: (s.prioridad || "MEDIA") as Prioridad,
+          diasSLA: s.dias_sla || 0,
+          radicadoOrigen: s.radicado_origen || "",
+        }))
+        setSolicitudes(mapped)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchSolicitudes()
+  }, [])
 
   // Clasificar solicitudes por estado
-  const pendientesValidar = mockSolicitudes.filter(
-    s => s.estado === "RECIBIDA" || s.estado === "EN_VALIDACION"
+  const pendientesValidar = solicitudes.filter(
+    s => s.estado === "EN_VALIDACION"
   )
-  const radicadas = mockSolicitudes.filter(
+  const radicadas = solicitudes.filter(
     s => s.estado === "RADICADA_EN_SIGOBIUS"
   )
-  const asignadas = mockSolicitudes.filter(
-    s => s.estado === "ASIGNADA_A_ABOGADO" || s.estado === "EN_PROCESO"
+  const asignadas = solicitudes.filter(
+    s => s.estado === "ASIGNADA_A_ABOGADO"
   )
-  const devueltas = mockSolicitudes.filter(
-    s => s.estado === "DEVUELTA"
+  const devueltas = solicitudes.filter(
+    s => s.estado === "DEVUELTA_POR_GESTOR" || s.estado === "DEVUELTA_POR_ABOGADO"
   )
 
   // Filtrar según búsqueda
-  const filterSolicitudes = (solicitudes: typeof mockSolicitudes) => {
+  const filterSolicitudes = (solicitudes: SolicitudGestion[]) => {
     return solicitudes.filter(s => 
       s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.radicadoOrigen.includes(searchQuery) ||
@@ -113,6 +161,12 @@ export default function GestionPage() {
       </div>
 
       {/* Contadores rápidos */}
+      {loading ? (
+        <div className="flex items-center justify-center h-24">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+      <>
       <div className="grid gap-4 md:grid-cols-4">
         {tabs.map((tab) => (
           <Card 
@@ -148,7 +202,8 @@ export default function GestionPage() {
       <Card>
         <CardHeader>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
+            <div className="overflow-x-auto -mx-1 px-1 pb-1">
+            <TabsList className="grid w-full grid-cols-4 min-w-[320px]">
               {tabs.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
                   <tab.icon className="h-4 w-4" />
@@ -159,6 +214,7 @@ export default function GestionPage() {
                 </TabsTrigger>
               ))}
             </TabsList>
+            </div>
           </Tabs>
         </CardHeader>
         <CardContent>
@@ -213,7 +269,7 @@ export default function GestionPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
-                          {CLASE_PROCESO_LABELS[solicitud.claseProceso]}
+                          {CLASE_PROCESO_LABELS[solicitud.claseProceso as keyof typeof CLASE_PROCESO_LABELS] || solicitud.claseProceso}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -295,6 +351,8 @@ export default function GestionPage() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   )
 }

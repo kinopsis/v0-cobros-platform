@@ -1,63 +1,45 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Bell, CheckCircle, AlertCircle, Info, Trash2, Archive } from 'lucide-react'
+import { Bell, CheckCircle, AlertCircle, Info, Trash2, Archive, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-const notificaciones = [
-  {
-    id: 1,
-    tipo: 'asignacion',
-    titulo: 'Nuevo caso asignado',
-    descripcion: 'Se le ha asignado el caso #2024-001245 para gestión',
-    fecha: '2024-06-15 14:30',
-    leida: false,
-    icono: <CheckCircle className="h-5 w-5 text-blue-600" />
-  },
-  {
-    id: 2,
-    tipo: 'alerta',
-    titulo: 'Vencimiento de plazo próximo',
-    descripcion: 'El plazo para el caso #2024-001200 vence en 3 días',
-    fecha: '2024-06-15 10:15',
-    leida: false,
-    icono: <AlertCircle className="h-5 w-5 text-orange-600" />
-  },
-  {
-    id: 3,
-    tipo: 'info',
-    titulo: 'Pago registrado',
-    descripcion: 'Se registró un pago de $500.000 en el caso #2024-001180',
-    fecha: '2024-06-14 16:45',
-    leida: true,
-    icono: <Info className="h-5 w-5 text-green-600" />
-  },
-  {
-    id: 4,
-    tipo: 'alerta',
-    titulo: 'Cambio de estado',
-    descripcion: 'El caso #2024-001160 cambió a estado "En Coactiva"',
-    fecha: '2024-06-14 12:20',
-    leida: true,
-    icono: <CheckCircle className="h-5 w-5 text-blue-600" />
-  },
-  {
-    id: 5,
-    tipo: 'info',
-    titulo: 'Nuevo documento adjunto',
-    descripcion: 'Se adjuntó sentencia en el caso #2024-001150',
-    fecha: '2024-06-13 09:30',
-    leida: true,
-    icono: <Info className="h-5 w-5 text-green-600" />
-  }
-]
-
 export default function NotificacionesPage() {
-  const [notifs, setNotifs] = useState(notificaciones)
+  const [notifs, setNotifs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todas')
+
+  useEffect(() => {
+    async function fetchNotificaciones() {
+      try {
+        const res = await fetch('/api/notificaciones')
+        if (!res.ok) throw new Error('Error al cargar notificaciones')
+        const json = await res.json()
+        const mapped = (json.data || []).map((n: any) => ({
+          id: n.id,
+          tipo: n.tipo,
+          titulo: n.titulo,
+          descripcion: n.mensaje,
+          fecha: n.fecha_creacion,
+          leida: n.leida,
+          icono: n.tipo === 'alerta' || n.tipo === 'ALERTA_INACTIVIDAD'
+            ? <AlertCircle className="h-5 w-5 text-orange-600" />
+            : n.tipo === 'info'
+              ? <Info className="h-5 w-5 text-green-600" />
+              : <CheckCircle className="h-5 w-5 text-blue-600" />,
+        }))
+        setNotifs(mapped)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchNotificaciones()
+  }, [])
 
   const notifsFiltradas = notifs.filter(n => {
     if (filtro === 'no-leidas') return !n.leida
@@ -65,25 +47,35 @@ export default function NotificacionesPage() {
     return true
   })
 
-  const handleMarcarLeida = (id: number) => {
-    setNotifs(notifs.map(n => n.id === id ? { ...n, leida: true } : n))
-    toast.success('Notificación marcada como leída')
+  const handleMarcarLeida = async (id: string) => {
+    try {
+      const res = await fetch('/api/notificaciones', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [id], accion: 'marcar_leidas' }),
+      })
+      if (!res.ok) throw new Error('Error al marcar como leída')
+      setNotifs(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n))
+      toast.success('Notificación marcada como leída')
+    } catch {
+      toast.error('Error al marcar como leída')
+    }
   }
 
-  const handleEliminar = (id: number) => {
-    setNotifs(notifs.filter(n => n.id !== id))
+  const handleEliminar = (id: string) => {
+    setNotifs(prev => prev.filter(n => n.id !== id))
     toast.success('Notificación eliminada')
   }
 
-  const handleArchivar = (id: number) => {
-    setNotifs(notifs.filter(n => n.id !== id))
+  const handleArchivar = (id: string) => {
+    setNotifs(prev => prev.filter(n => n.id !== id))
     toast.success('Notificación archivada')
   }
 
   const noLeidas = notifs.filter(n => !n.leida).length
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6 lg:p-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Notificaciones</h1>
@@ -97,6 +89,11 @@ export default function NotificacionesPage() {
         )}
       </div>
 
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
       <Tabs defaultValue="todas" value={filtro} onValueChange={setFiltro}>
         <TabsList>
           <TabsTrigger value="todas">Todas ({notifs.length})</TabsTrigger>
@@ -108,7 +105,7 @@ export default function NotificacionesPage() {
           {notifsFiltradas.map((notif) => (
             <Card key={notif.id} className={notif.leida ? 'opacity-75' : ''}>
               <CardContent className="pt-6">
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   <div className="flex-shrink-0 pt-1">
                     {notif.icono}
                   </div>
@@ -124,7 +121,7 @@ export default function NotificacionesPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-2 sm:mt-0">
                     {!notif.leida && (
                       <Button
                         variant="ghost"
@@ -169,7 +166,7 @@ export default function NotificacionesPage() {
           {notifsFiltradas.map((notif) => (
             <Card key={notif.id}>
               <CardContent className="pt-6">
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   <div className="flex-shrink-0 pt-1">
                     {notif.icono}
                   </div>
@@ -178,7 +175,7 @@ export default function NotificacionesPage() {
                     <p className="text-sm text-muted-foreground mt-1">{notif.descripcion}</p>
                     <p className="text-xs text-muted-foreground mt-2">{notif.fecha}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-2 sm:mt-0">
                     <Button
                       onClick={() => handleMarcarLeida(notif.id)}
                       size="sm"
@@ -204,7 +201,7 @@ export default function NotificacionesPage() {
           {notifsFiltradas.map((notif) => (
             <Card key={notif.id} className="opacity-75">
               <CardContent className="pt-6">
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   <div className="flex-shrink-0 pt-1">
                     {notif.icono}
                   </div>
@@ -226,6 +223,7 @@ export default function NotificacionesPage() {
           ))}
         </TabsContent>
       </Tabs>
+      )}
     </div>
   )
 }

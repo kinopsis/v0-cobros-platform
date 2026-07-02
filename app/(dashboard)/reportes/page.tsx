@@ -1,207 +1,209 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { Download, Filter } from 'lucide-react'
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
+import { Download, Loader2 } from 'lucide-react'
+import { useIsMobile } from '@/hooks/use-mobile'
 
-const reporteData = [
-  { mes: 'Enero', recaudado: 45200000, pendiente: 23400000, coactiva: 12300000 },
-  { mes: 'Febrero', recaudado: 52100000, pendiente: 21500000, coactiva: 14200000 },
-  { mes: 'Marzo', recaudado: 48900000, pendiente: 25600000, coactiva: 13500000 },
-  { mes: 'Abril', recaudado: 61200000, pendiente: 19800000, coactiva: 15600000 },
-  { mes: 'Mayo', recaudado: 55600000, pendiente: 22100000, coactiva: 14800000 },
-  { mes: 'Junio', recaudado: 67800000, pendiente: 18900000, coactiva: 16200000 },
-]
+const COLORS = ['#1e3a5f', '#c49f5c', '#2563eb', '#10b981', '#ef4444', '#8b5cf6', '#f59e0b', '#ec4899']
 
-const estadosCasos = [
-  { name: 'Radicado', value: 156, fill: '#1e3a5f' },
-  { name: 'En Gestión', value: 89, fill: '#c49f5c' },
-  { name: 'En Coactiva', value: 45, fill: '#2563eb' },
-  { name: 'Pagado', value: 234, fill: '#10b981' },
-  { name: 'Cancelado', value: 23, fill: '#ef4444' },
-]
-
-const topJuzgados = [
-  { juzgado: 'Juzgado Administrativo 1', casos: 45, recaudado: 234500000 },
-  { juzgado: 'Juzgado Administrativo 2', casos: 38, recaudado: 198300000 },
-  { juzgado: 'Juzgado Laboral 1', casos: 32, recaudado: 156800000 },
-  { juzgado: 'Juzgado de Garantías', casos: 28, recaudado: 142200000 },
-  { juzgado: 'Juzgado Penal 1', casos: 25, recaudado: 125600000 },
-]
+const formatMonto = (monto: number): string => {
+  if (monto >= 1_000_000) return `$${(monto / 1_000_000).toFixed(1)}M`
+  if (monto >= 1_000) return `$${(monto / 1_000).toFixed(0)}K`
+  return `$${monto.toLocaleString("es-CO")}`
+}
 
 export default function ReportesPage() {
-  const [tipoReporte, setTipoReporte] = useState('general')
-  const [fechaInicio, setFechaInicio] = useState('2024-01-01')
-  const [fechaFin, setFechaFin] = useState('2024-06-30')
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const isMobile = useIsMobile()
+
+  useEffect(() => {
+    fetch("/api/bi")
+      .then(r => r.json())
+      .then(d => setData(d))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  const kpi = data?.kpi || {}
+  const topJuzgados = (data?.montoPorJuzgado || []).slice(0, 10)
+  const distribucionConcepto = useMemo(() => (data?.distribucionConcepto || []).map((c: any) => ({
+    name: (c.clase || '').replace(/_/g, ' '),
+    value: c.total,
+    monto: c.monto,
+    activos: c.activos,
+  })), [data?.distribucionConcepto])
+
+  const radicacionesData = useMemo(() => (data?.radicacionesPorJuzgado || []).slice(0, 10).map((r: any) => ({
+    juzgado: r.juzgado.length > 25 ? r.juzgado.substring(0, 22) + '...' : r.juzgado,
+    Pendientes: r.pendientes,
+    "Asignadas a Abogado": r.asignadas_abogado,
+  })), [data?.radicacionesPorJuzgado])
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Reportes y Análisis</h1>
         <p className="text-muted-foreground mt-2">Seguimiento detallado de indicadores de gestión y recaudación</p>
       </div>
 
-      {/* Filtros */}
+      {/* Filtros simplificados */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Filtros de Reporte</CardTitle>
+          <CardTitle className="text-base">Resumen Ejecutivo</CardTitle>
+          <CardDescription>KPIs del sistema de cobro coactivo</CardDescription>
         </CardHeader>
         <CardContent className="flex gap-4 flex-wrap">
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium">Tipo de Reporte</label>
-            <Select value={tipoReporte} onValueChange={setTipoReporte}>
-              <SelectTrigger className="mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="general">Reporte General</SelectItem>
-                <SelectItem value="recaudacion">Recaudación</SelectItem>
-                <SelectItem value="gestores">Gestores</SelectItem>
-                <SelectItem value="abogados">Abogados</SelectItem>
-                <SelectItem value="juzgados">Juzgados</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="bg-blue-50 rounded-lg p-3 flex-1 min-w-[120px]">
+            <p className="text-xs text-muted-foreground">Monto Pendiente</p>
+            <p className="text-xl font-bold text-blue-900">{formatMonto(kpi.montoTotalPendiente || 0)}</p>
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium">Fecha Inicio</label>
-            <Input
-              type="date"
-              value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
-              className="mt-2"
-            />
+          <div className="bg-amber-50 rounded-lg p-3 flex-1 min-w-[120px]">
+            <p className="text-xs text-muted-foreground">Sancionados</p>
+            <p className="text-xl font-bold text-amber-900">{kpi.totalSancionados || 0}</p>
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium">Fecha Fin</label>
-            <Input
-              type="date"
-              value={fechaFin}
-              onChange={(e) => setFechaFin(e.target.value)}
-              className="mt-2"
-            />
+          <div className="bg-indigo-50 rounded-lg p-3 flex-1 min-w-[120px]">
+            <p className="text-xs text-muted-foreground">Radicaciones</p>
+            <p className="text-xl font-bold text-indigo-900">{kpi.totalRadicaciones || 0}</p>
           </div>
-          <div className="flex gap-2 pt-6">
-            <Button variant="outline" size="sm">
-              <Filter className="mr-2 h-4 w-4" />
-              Aplicar Filtros
-            </Button>
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Exportar PDF
-            </Button>
+          <div className="bg-green-50 rounded-lg p-3 flex-1 min-w-[120px]">
+            <p className="text-xs text-muted-foreground">Tasa Recaudo</p>
+            <p className="text-xl font-bold text-green-900">{kpi.tasaRecaudo || 0}%</p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Download className="mr-2 h-4 w-4" />
+            Exportar PDF
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Gráfico de Recaudación */}
+      {/* Gráfico de Monto por Juzgado */}
       <Card>
         <CardHeader>
-          <CardTitle>Recaudación Mensual</CardTitle>
-          <CardDescription>Seguimiento de montos recaudados, pendientes y en coactiva</CardDescription>
+          <CardTitle>Monto Pendiente por Juzgado</CardTitle>
+          <CardDescription>Top 10 juzgados con mayor valor pendiente de cobro</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={reporteData}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 350}>
+            <BarChart data={topJuzgados.slice(0, 8).map((j: any) => ({ name: (j.juzgado || '').length > (isMobile ? 14 : 20) ? j.juzgado.substring(0, (isMobile ? 12 : 18)) + '...' : j.juzgado, monto: j.monto_pendiente, casos: j.casos }))} layout="vertical" margin={{ left: isMobile ? 10 : 0, right: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="mes" />
-              <YAxis />
-              <Tooltip formatter={(value) => `$${(value / 1000000).toFixed(1)}M`} />
-              <Legend />
-              <Bar dataKey="recaudado" fill="#10b981" name="Recaudado" />
-              <Bar dataKey="pendiente" fill="#f59e0b" name="Pendiente" />
-              <Bar dataKey="coactiva" fill="#1e3a5f" name="En Coactiva" />
+              <XAxis type="number" tickFormatter={(v) => formatMonto(v)} tick={{ fontSize: isMobile ? 9 : 11 }} />
+              <YAxis type="category" dataKey="name" width={isMobile ? 110 : 160} tick={{ fontSize: isMobile ? 10 : 11 }} />
+              <Tooltip formatter={(value: number) => formatMonto(value)} />
+              <Bar dataKey="monto" fill="#c49f5c" name="Monto Pendiente" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Estados de Casos */}
+        {/* Distribución por Naturaleza */}
         <Card>
           <CardHeader>
-            <CardTitle>Distribución de Estados</CardTitle>
-            <CardDescription>Casos por estado actual</CardDescription>
+            <CardTitle>Distribución por Naturaleza</CardTitle>
+            <CardDescription>Volumen de casos por clase de proceso</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={estadosCasos}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={(entry) => `${entry.name} (${entry.value})`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {estadosCasos.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${value} casos`} />
-              </PieChart>
+            <ResponsiveContainer width="100%" height={isMobile ? 240 : 280}>
+              <BarChart data={distribucionConcepto.slice(0, isMobile ? 6 : 8)} layout="vertical" margin={{ left: isMobile ? 10 : 140, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tick={{ fontSize: isMobile ? 9 : 11 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: isMobile ? 9 : 11 }} width={isMobile ? 100 : 130} />
+                <Tooltip formatter={(value: number, _name: string, props: any) => [`${value} casos (${props.payload.activos || 0} activos)`, "Total"]} />
+                <Bar dataKey="value" name="Casos" radius={[0, 4, 4, 0]}>
+                  {distribucionConcepto.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Línea Temporal */}
+        {/* Distribución por Concepto */}
         <Card>
           <CardHeader>
-            <CardTitle>Tendencia de Casos</CardTitle>
-            <CardDescription>Evolución mensual de nuevos casos</CardDescription>
+            <CardTitle>Distribución por Concepto</CardTitle>
+            <CardDescription>Volumen de casos por tipo de asunto</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={reporteData}>
+            <ResponsiveContainer width="100%" height={isMobile ? 240 : 280}>
+              <BarChart data={(data?.distribucionNaturaleza || []).slice(0, isMobile ? 6 : 8).map((a: any) => ({ name: a.asunto.replace(/_/g, ' '), value: a.total, activos: a.activos }))} layout="vertical" margin={{ left: isMobile ? 10 : 140, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="mes" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="recaudado" stroke="#1e3a5f" strokeWidth={2} name="Recaudado" />
-              </LineChart>
+                <XAxis type="number" tick={{ fontSize: isMobile ? 9 : 11 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: isMobile ? 9 : 11 }} width={isMobile ? 100 : 130} />
+                <Tooltip formatter={(value: number, _name: string, props: any) => [`${value} casos (${props.payload.activos || 0} activos)`, "Total"]} />
+                <Bar dataKey="value" name="Casos" radius={[0, 4, 4, 0]}>
+                  {(data?.distribucionNaturaleza || []).map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Top Juzgados */}
+      {/* Radicaciones por Juzgado */}
       <Card>
         <CardHeader>
-          <CardTitle>Top 5 Juzgados por Recaudación</CardTitle>
-          <CardDescription>Juzgados con mayor desempeño en recaudación</CardDescription>
+          <CardTitle>Radicaciones por Juzgado</CardTitle>
+          <CardDescription>Solicitudes totales vs repartidas a abogado por despacho</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {topJuzgados.map((juzgado, index) => (
-              <div key={index} className="flex items-center justify-between border-b pb-3 last:border-0">
-                <div className="flex-1">
-                  <p className="font-medium text-sm">{juzgado.juzgado}</p>
-                  <p className="text-xs text-muted-foreground">{juzgado.casos} casos activos</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-sm">${(juzgado.recaudado / 1000000).toFixed(1)}M</p>
-                  <div className="w-32 h-2 bg-secondary rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary" 
-                      style={{ width: `${(juzgado.recaudado / 234500000) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 320}>
+            <BarChart data={radicacionesData} layout="vertical" margin={{ left: isMobile ? 80 : 120, right: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" tick={{ fontSize: isMobile ? 9 : 11 }} />
+              <YAxis type="category" dataKey="juzgado" tick={{ fontSize: isMobile ? 9 : 11 }} width={isMobile ? 70 : 110} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
+              <Bar dataKey="Pendientes" fill="#f59e0b" />
+              <Bar dataKey="Asignadas a Abogado" fill="#2563eb" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Tabla detallada */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Detalle por Juzgado</CardTitle>
+          <CardDescription>Datos completos de monto pendiente, casos y sancionados</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Juzgado</TableHead>
+                <TableHead className="text-right">Monto Pendiente</TableHead>
+                <TableHead className="text-right">Casos</TableHead>
+                <TableHead className="text-right">Sancionados</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {topJuzgados.map((j: any, i: number) => {
+                const sanc = (data?.sancionadosPorJuzgado || []).find((s: any) => s.juzgado === j.juzgado)
+                return (
+                  <TableRow key={i}>
+                    <TableCell className="font-medium text-sm max-w-[200px] truncate">{j.juzgado}</TableCell>
+                    <TableCell className="text-right text-green-700 font-medium">{formatMonto(j.monto_pendiente)}</TableCell>
+                    <TableCell className="text-right">{j.casos}</TableCell>
+                    <TableCell className="text-right">{sanc?.total_sancionados || 0}</TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

@@ -64,10 +64,8 @@ const navigationByRole: Record<UserRole, NavItem[]> = {
   ],
   ABOGADO: [
     { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { title: "Mis Casos", href: "/casos", icon: Briefcase, badge: 15 },
-    { title: "En Proceso", href: "/casos/proceso", icon: Clock },
-    { title: "Cerrados", href: "/casos/cerrados", icon: CheckCircle2 },
-    { title: "Alertas", href: "/alertas", icon: AlertTriangle, badge: 3 },
+    { title: "Mis Casos", href: "/casos", icon: Briefcase },
+    { title: "Solicitudes", href: "/solicitudes", icon: FileText },
     { title: "Notificaciones", href: "/notificaciones", icon: Bell },
   ],
   ADMIN: [
@@ -89,7 +87,7 @@ const roleLabels: Record<UserRole, string> = {
 }
 
 export function AppSidebar() {
-  const { user, logout, switchRole } = useAuth()
+  const { user, logout } = useAuth()
   const pathname = usePathname()
 
   if (!user) return null
@@ -115,10 +113,10 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-sidebar-foreground">
-              DESAJ Antioquia
+              {user.codigoDespacho || user.nombre || "Despacho"}
             </span>
             <span className="text-xs text-sidebar-foreground/70">
-              Cobro Coactivo
+              {user.nombreJuzgado || user.nombre || "Cobro Coactivo"}
             </span>
           </div>
         </div>
@@ -154,27 +152,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Demo: Role Switcher */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/50">
-            Demo: Cambiar Rol
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {(["JUZGADO", "GESTOR", "ABOGADO", "ADMIN"] as UserRole[]).map((role) => (
-                <SidebarMenuItem key={role}>
-                  <SidebarMenuButton
-                    onClick={() => switchRole(role)}
-                    isActive={user.rol === role}
-                  >
-                    <Users className="h-4 w-4" />
-                    <span className="capitalize">{role.toLowerCase()}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
@@ -189,10 +167,10 @@ export function AppSidebar() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col items-start text-left">
-                    <span className="text-sm font-medium truncate max-w-[140px]">
+                    <span className="text-sm font-medium truncate max-w-[100px] sm:max-w-[120px] md:max-w-[140px]">
                       {user.nombre}
                     </span>
-                    <span className="text-xs text-sidebar-foreground/70 truncate max-w-[140px]">
+                    <span className="text-xs text-sidebar-foreground/70 truncate max-w-[100px] sm:max-w-[120px] md:max-w-[140px]">
                       {user.email}
                     </span>
                   </div>
