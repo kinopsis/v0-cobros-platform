@@ -4,6 +4,7 @@ import dynamic from "next/dynamic"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -42,11 +43,10 @@ export function DocumentViewerDialog({
   onOpenChange,
   document: doc,
 }: DocumentViewerDialogProps) {
-  if (!doc) return null
-
-  const pdf = isPdf(doc)
+  const pdf = doc ? isPdf(doc) : false
 
   const handleDownload = () => {
+    if (!doc) return
     const a = document.createElement("a")
     a.href = doc.url
     a.download = doc.nombre
@@ -58,13 +58,15 @@ export function DocumentViewerDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open && !!doc} onOpenChange={onOpenChange}>
+      {!doc ? null : (
       <DialogContent className="flex h-[90vh] w-[95vw] max-w-5xl flex-col gap-0 p-0">
         <DialogHeader className="flex flex-row items-center justify-between border-b px-4 py-3">
           <DialogTitle className="flex min-w-0 items-center gap-2 text-sm font-medium">
             <FileText className="h-4 w-4 shrink-0 text-destructive" />
             <span className="truncate">{doc.nombre}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">Visor de documento {doc.nombre}</DialogDescription>
           <Button variant="ghost" size="sm" onClick={handleDownload} className="shrink-0">
             <Download className="mr-2 h-4 w-4" />
             Descargar
@@ -89,6 +91,7 @@ export function DocumentViewerDialog({
           )}
         </div>
       </DialogContent>
+      )}
     </Dialog>
   )
 }

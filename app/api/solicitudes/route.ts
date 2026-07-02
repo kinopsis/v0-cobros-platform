@@ -29,6 +29,11 @@ export async function GET(request: NextRequest) {
     query = query.eq("abogado_asignado_id", session.user.usuarioId)
   }
 
+  // Excluir BORRADOR de otros roles (solo el creador y ADMIN ven sus borradores)
+  if (session.user.rol !== "ADMIN") {
+    query = query.or(`estado.neq.BORRADOR,created_by.eq.${session.user.usuarioId}`)
+  }
+
   const { data, error, count } = await query
     .order("fecha_solicitud", { ascending: false })
     .range(offset, offset + limit - 1)
@@ -64,6 +69,7 @@ export async function POST(request: NextRequest) {
   const sancionados = JSON.parse(sancionadosRaw || "[]")
   const etapaPreliminarRaw = fd.get("etapa_preliminar") as string
   const etapa_preliminar = JSON.parse(etapaPreliminarRaw || "{}")
+  const estado = (fd.get("estado") as string) || "EN_VALIDACION"
   
   // Extraer archivos
   const documentos = fd.getAll("documentos") as File[]
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
       observaciones: null,
       // Metadatos del sistema
       radicado_sigobius: null,
-      estado: "EN_VALIDACION",
+      estado: estado,
       created_by: session.user.usuarioId,
       fecha_solicitud: new Date().toISOString(),
     })
@@ -128,35 +134,46 @@ export async function POST(request: NextRequest) {
 
   // Subir documentos a Supabase Storage
   const documentosAdjuntos = []
+  const uploadErrors: string[] = []
+  
   for (const file of documentos) {
     try {
-      const filePath = `${solicitudId}/${Date.now()}-${file.name}`
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
+      const filePath = `${solicitudId}/${Date.now()}-${safeName}`
+      
+      // Convertir File a ArrayBuffer para compatibilidad
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      
       const { error: uploadError } = await supabase.storage
         .from("solicitudes-docs")
-        .upload(filePath, file, {
-          contentType: "application/pdf",
+        .upload(filePath, buffer, {
+          contentType: file.type || "application/pdf",
           upsert: false,
         })
 
-      if (!uploadError) {
-        const { data: urlData } = await supabase.storage
-          .from("solicitudes-docs")
-          .createSignedUrl(filePath, 3600)
-
-        documentosAdjuntos.push({
-          solicitud_id: solicitudId,
-          nombre: file.name,
-          tipo: "application/pdf",
-          url: urlData?.signedUrl || "",
-          storage_path: filePath,
-          es_obligatorio: true,
-          fecha_carga: new Date().toISOString(),
-        })
-      } else {
-        console.error("Error al subir documento a Storage:", uploadError)
+      if (uploadError) {
+        console.error(`[Upload Error] ${file.name}:`, uploadError.message)
+        uploadErrors.push(`${file.name}: ${uploadError.message}`)
+        continue
       }
-    } catch (uploadErr) {
-      console.error("Error al subir documento:", uploadErr)
+
+      const { data: urlData } = await supabase.storage
+        .from("solicitudes-docs")
+        .createSignedUrl(filePath, 3600)
+
+      documentosAdjuntos.push({
+        solicitud_id: solicitudId,
+        nombre: file.name,
+        tipo: file.type || "application/pdf",
+        url: urlData?.signedUrl || "",
+        storage_path: filePath,
+        es_obligatorio: true,
+        fecha_carga: new Date().toISOString(),
+      })
+    } catch (uploadErr: any) {
+      console.error(`[Upload Exception] ${file.name}:`, uploadErr.message || uploadErr)
+      uploadErrors.push(`${file.name}: ${uploadErr.message || "Error desconocido"}`)
     }
   }
 
@@ -177,5 +194,8 @@ export async function POST(request: NextRequest) {
     observaciones: "Solicitud creada desde portal de juzgados",
   })
 
-  return NextResponse.json({ data }, { status: 201 })
+  return NextResponse.json({ 
+    data, 
+    documentos: { subidos: documentosAdjuntos.length, errores: uploadErrors }
+  }, { status: 201 })
 }

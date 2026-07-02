@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 import { DocumentViewerDialog } from "@/components/pdf-viewer/document-viewer-dialog"
 import { WorkflowDialogs } from "@/components/solicitudes/workflow-dialogs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -118,6 +119,7 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
             fechaCarga: new Date(doc.fecha_carga),
             esObligatorio: doc.es_obligatorio || false,
           })),
+          etapaPreliminar: d.etapa_preliminar || {},
         })
       } catch (err: any) {
         setError(err.message || "Error al cargar la solicitud")
@@ -150,19 +152,11 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
     }
   }, [isGestor])
 
-  // Descargar comprobante
+  // Mostrar resumen de la solicitud
+  const [showResumen, setShowResumen] = useState(false)
+
   const handleDescargarComprobante = () => {
-    if (!solicitud) return
-    const docs = solicitud.documentosAdjuntos
-    if (docs && docs.length > 0) {
-      // Usar el primer documento como comprobante
-      const doc = docs[0]
-      window.open(doc.url, "_blank", "noopener,noreferrer")
-    } else {
-      toast.info("Sin comprobante", {
-        description: "Esta solicitud no tiene documentos adjuntos para descargar como comprobante.",
-      })
-    }
+    setShowResumen(true)
   }
 
   // Corregir y reenviar (JUZGADO)
@@ -487,29 +481,6 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
             </CardContent>
           </Card>
 
-          {/* Etapa Preliminar */}
-          {solicitud.etapaPreliminar && Object.entries(solicitud.etapaPreliminar).filter(([, v]) => v !== null && v !== undefined && v !== "").length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Scale className="h-5 w-5 text-primary" />
-                  Etapa Preliminar
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {Object.entries(solicitud.etapaPreliminar)
-                    .filter(([, v]) => v !== null && v !== undefined && v !== "")
-                    .map(([key, value]) => (
-                      <div key={key}>
-                        <p className="text-sm text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
-                        <p className="font-medium">{typeof value === 'boolean' ? (value ? 'Sí' : 'No') : String(value)}</p>
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         {/* Panel lateral */}
@@ -590,6 +561,18 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
                 <span className="text-muted-foreground">Solicitud</span>
                 <span>{format(solicitud.fechaSolicitud, "d MMM yyyy", { locale: es })}</span>
               </div>
+              {solicitud.etapaPreliminar?.providencia && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Providencia</span>
+                  <span>{format(new Date(solicitud.etapaPreliminar.providencia), "d MMM yyyy", { locale: es })}</span>
+                </div>
+              )}
+              {solicitud.etapaPreliminar?.ejecutoria && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Ejecutoria</span>
+                  <span>{format(new Date(solicitud.etapaPreliminar.ejecutoria), "d MMM yyyy", { locale: es })}</span>
+                </div>
+              )}
               {solicitud.fechaRadicacion && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Radicación</span>
@@ -671,6 +654,89 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
           userRol={user?.rol}
         />
       )}
+
+      {/* Diálogo de Resumen de Solicitud */}
+      <Dialog open={showResumen} onOpenChange={setShowResumen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto" id="resumen-content">
+          <DialogHeader>
+            <DialogTitle>Resumen de Solicitud — {solicitud.id}</DialogTitle>
+          </DialogHeader>
+          <div className="flex gap-2 mb-4 no-print">
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Download className="h-4 w-4 mr-1" /> Imprimir
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              const content = document.getElementById("resumen-content")?.innerHTML || ""
+              const blob = new Blob([`<html><head><meta charset="UTF-8"><title>Resumen ${solicitud.id}</title><style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px} h4{margin:12px 0 6px} .no-print{display:none} .border{padding:8px;margin:4px 0} .font-medium{font-weight:bold} .grid{display:grid} .grid-cols-2{grid-template-columns:1fr 1fr} .grid-cols-3{grid-template-columns:1fr 1fr 1fr}</style></head><body>${content}</body></html>`], { type: "text/html" })
+              const a = document.createElement("a")
+              a.href = URL.createObjectURL(blob)
+              a.download = `Resumen_${solicitud.id}.html`
+              a.click()
+              URL.revokeObjectURL(a.href)
+            }}>
+              <Download className="h-4 w-4 mr-1" /> Descargar
+            </Button>
+          </div>
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <div><span className="font-medium">Estado:</span> {ESTADO_LABELS[solicitud.estado]}</div>
+              <div><span className="font-medium">Prioridad:</span> {PRIORIDAD_LABELS[solicitud.prioridad]}</div>
+              <div><span className="font-medium">Fecha Solicitud:</span> {solicitud.fechaSolicitud ? format(new Date(solicitud.fechaSolicitud), "dd/MM/yyyy HH:mm", { locale: es }) : "—"}</div>
+              <div><span className="font-medium">Concepto:</span> {CONCEPTO_LABELS[solicitud.concepto as keyof typeof CONCEPTO_LABELS] || solicitud.concepto || "—"}</div>
+              <div className="col-span-2"><span className="font-medium">Naturaleza:</span> {solicitud.naturaleza || "—"}</div>
+              <div className="col-span-2"><span className="font-medium">Radicado Origen:</span> {solicitud.radicadoOrigen || "—"}</div>
+              {solicitud.etapaPreliminar?.providencia && (
+                <div><span className="font-medium">Providencia:</span> {format(new Date(solicitud.etapaPreliminar.providencia), "dd/MM/yyyy", { locale: es })}</div>
+              )}
+              {solicitud.etapaPreliminar?.ejecutoria && (
+                <div><span className="font-medium">Ejecutoria:</span> {format(new Date(solicitud.etapaPreliminar.ejecutoria), "dd/MM/yyyy", { locale: es })}</div>
+              )}
+            </div>
+
+            <Separator />
+            <h4 className="font-semibold">Datos del Despacho</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <div><span className="font-medium">Código:</span> {solicitud.codigoDespacho || "—"}</div>
+              <div><span className="font-medium">Juzgado:</span> {solicitud.nombreJuzgado || "—"}</div>
+              <div className="col-span-2"><span className="font-medium">Funcionario:</span> {solicitud.funcionarioRemitente || "—"}</div>
+              <div className="col-span-2"><span className="font-medium">Correo:</span> {solicitud.correoInstitucional || "—"}</div>
+            </div>
+
+            <Separator />
+            <h4 className="font-semibold">Personas Sancionadas ({solicitud.sancionados?.length || 0})</h4>
+            {solicitud.sancionados?.map((s: any, i: number) => (
+              <div key={i} className="border rounded p-2 text-xs space-y-1">
+                <div><span className="font-medium">Nombre:</span> {s.nombre_completo || s.nombreCompleto || "—"}</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div><span className="font-medium">Doc:</span> {TIPO_DOCUMENTO_LABELS[s.tipo_documento as keyof typeof TIPO_DOCUMENTO_LABELS] || s.tipo_documento || s.tipoDocumento} {s.numero_documento || s.numeroDocumento}</div>
+                  <div><span className="font-medium">Tipo:</span> {TIPO_PERSONA_LABELS[s.tipo_persona as keyof typeof TIPO_PERSONA_LABELS] || s.tipo_persona || s.tipoPersona}</div>
+                  <div><span className="font-medium">Sanción:</span> {s.tipo_sancion || s.tipoSancion || "—"} {s.cantidad_sancion || s.cantidadSancion || ""}</div>
+                </div>
+              </div>
+            ))}
+            {(!solicitud.sancionados || solicitud.sancionados.length === 0) && (
+              <p className="text-muted-foreground text-xs">Sin sancionados registrados</p>
+            )}
+
+            <Separator />
+            <h4 className="font-semibold">Documentos Adjuntos ({solicitud.documentosAdjuntos?.length || 0})</h4>
+            {solicitud.documentosAdjuntos?.map((d: any, i: number) => (
+              <div key={i} className="flex items-center justify-between border rounded p-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-destructive" />
+                  <span>{d.nombre}</span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => window.open(d.url, "_blank")}>
+                  <Download className="h-3 w-3 mr-1" /> Ver
+                </Button>
+              </div>
+            ))}
+            {(!solicitud.documentosAdjuntos || solicitud.documentosAdjuntos.length === 0) && (
+              <p className="text-muted-foreground text-xs">Sin documentos adjuntos</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
