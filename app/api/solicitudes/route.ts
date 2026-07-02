@@ -71,24 +71,47 @@ export async function POST(request: NextRequest) {
   const etapa_preliminar = JSON.parse(etapaPreliminarRaw || "{}")
   const estado = (fd.get("estado") as string) || "EN_VALIDACION"
 
-  // Resolver código de juzgado desde el radicado (longest-prefix-match)
+  // Resolver código de juzgado desde el radicado (formato: 0-codigo-9digitos-00)
   let codigoJuzgadoResuelto: string | null = null
   let nombreJuzgadoResuelto: string | null = null
   if (radicado_origen) {
-    // Buscar todos los códigos que sean prefijo del radicado
-    const { data: codigosData } = await supabase
-      .from("codigos_despachos")
-      .select("codigo, nombre")
-      .order("codigo", { ascending: false })
-      .limit(50)
+    // Intentar parsear formato nuevo: 0-{codigo}-{9digitos}-00
+    const newFormatMatch = radicado_origen.match(/^0-(\d+)-\d{9}-00$/)
+    let codigoBuscar: string | null = null
+    if (newFormatMatch) {
+      codigoBuscar = newFormatMatch[1]
+    } else {
+      // Fallback: buscar por prefijo (formato legacy)
+      codigoBuscar = radicado_origen
+    }
 
-    if (codigosData?.length) {
-      // Longest-prefix-match: buscar el código más largo que coincida
-      for (const c of codigosData) {
-        if (radicado_origen.startsWith(c.codigo)) {
-          codigoJuzgadoResuelto = c.codigo
-          nombreJuzgadoResuelto = c.nombre
-          break
+    if (codigoBuscar) {
+      // Buscar el código en la tabla (búsqueda exacta primero)
+      const { data: codigoData } = await supabase
+        .from("codigos_despachos")
+        .select("codigo, nombre")
+        .eq("codigo", codigoBuscar)
+        .maybeSingle()
+
+      if (codigoData) {
+        codigoJuzgadoResuelto = codigoData.codigo
+        nombreJuzgadoResuelto = codigoData.nombre
+      } else {
+        // Longest-prefix-match para formatos legacy
+        const { data: codigosData } = await supabase
+          .from("codigos_despachos")
+          .select("codigo, nombre")
+          .order("codigo", { ascending: false })
+          .limit(50)
+
+        if (codigosData?.length) {
+          for (const c of codigosData) {
+            if (radicado_origen.startsWith(c.codigo)) {
+              codigoJuzgadoResuelto = c.codigo
+              nombreJuzgadoResuelto = c.nombre
+              break
+            }
+          }
         }
       }
     }

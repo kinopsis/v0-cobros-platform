@@ -82,10 +82,20 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
   const [juzgadoInfo, setJuzgadoInfo] = useState<{ codigo: string; nombre: string } | null>(null)
   const [loadingCodigos, setLoadingCodigos] = useState(true)
 
-  // Función helper: longest-prefix-match para descomponer un radicado existente
+  // Función helper: descomponer radicado en código + secuencial
+  // Soporta: nuevo formato 0-codigo-9digitos-00 y formato legacy (concatenación simple)
   const descomponerRadicado = (radicado: string) => {
-    if (!radicado || codigosJuzgados.length === 0) return { codigo: "", secuencial: radicado }
-    // Ordenar códigos por longitud descendente para longest-prefix-match
+    if (!radicado) return { codigo: "", secuencial: "" }
+    // Intentar parsear nuevo formato: 0-{codigo}-{9digitos}-00
+    const newFormatMatch = radicado.match(/^0-(\d+)-(\d{9})-00$/)
+    if (newFormatMatch) {
+      const codigo = newFormatMatch[1]
+      if (codigosJuzgados.some(c => c.value === codigo)) {
+        return { codigo, secuencial: newFormatMatch[2] }
+      }
+    }
+    // Fallback: longest-prefix-match para formatos legacy
+    if (codigosJuzgados.length === 0) return { codigo: "", secuencial: radicado }
     const sorted = [...codigosJuzgados].sort((a, b) => b.value.length - a.value.length)
     for (const opt of sorted) {
       if (radicado.startsWith(opt.value)) {
@@ -148,7 +158,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
     setFormData(prev => ({ ...prev, concepto: value, naturaleza: naturalezaAuto }))
   }
 
-  // Validación de radicado de 23 dígitos (excepto caso especial "00" = formato libre)
+  // Validación de radicado: formato 0-codigo-9digitos-00 (excepto "00" = libre)
   const validateRadicado = (value: string) => {
     if (!value) return ""
     // Caso especial: código "00" = formato alfanumérico libre
@@ -156,9 +166,15 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
       if (value.length < 3) return "El radicado debe tener al menos 3 caracteres"
       return ""
     }
-    const cleanValue = value.replace(/\D/g, "")
-    if (cleanValue.length > 0 && cleanValue.length !== 23) {
-      return "El radicado debe tener exactamente 23 dígitos"
+    if (!codigoJuzgado) {
+      // Sin juzgado seleccionado aún, solo validar que no esté vacío y tenga estructura básica
+      if (value.length < 10) return "Seleccione un juzgado primero"
+      return ""
+    }
+    // Formato: 0-{codigoJuzgado}-{9digitos}-00
+    const pattern = new RegExp(`^0-${codigoJuzgado.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d{9}-00$`)
+    if (!pattern.test(value)) {
+      return `Formato: 0-${codigoJuzgado}-XXXXXXXXX-00 (9 dígitos)`
     }
     return ""
   }
@@ -196,8 +212,8 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
     } else {
       setJuzgadoInfo(null)
     }
-    // Consolidar radicado: código + secuencial
-    const consolidado = value === "00" ? secuencialRadicado : value + secuencialRadicado
+    // Consolidar radicado: 0-codigo-secuencial-00
+    const consolidado = value === "00" ? secuencialRadicado : value ? `0-${value}-${secuencialRadicado}-00` : ""
     setFormData(prev => ({ ...prev, radicadoOrigen: consolidado }))
     if (consolidado) {
       const error = validateRadicado(consolidado)
@@ -208,8 +224,8 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
   // Manejador de cambio del secuencial (dígitos manuales)
   const handleSecuencialChange = (value: string) => {
     setSecuencialRadicado(value)
-    // Consolidar radicado: código + secuencial
-    const consolidado = codigoJuzgado === "00" ? value : codigoJuzgado + value
+    // Consolidar radicado: 0-codigo-secuencial-00
+    const consolidado = codigoJuzgado === "00" ? value : codigoJuzgado ? `0-${codigoJuzgado}-${value}-00` : ""
     setFormData(prev => ({ ...prev, radicadoOrigen: consolidado }))
     if (consolidado) {
       const error = validateRadicado(consolidado)
@@ -408,6 +424,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
         const options = (json.data || []).map((c: { codigo: string; nombre: string }) => ({
           value: c.codigo,
           label: `${c.codigo} — ${c.nombre}`,
+          filterValue: `${c.codigo} ${c.nombre}`,
         }))
         setCodigosJuzgados(options)
       } catch {
@@ -523,7 +540,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                 Radicado de Origen <span className="text-destructive">*</span>
               </Label>
               <p className="text-xs text-muted-foreground mb-2">
-                Seleccione el juzgado por código o nombre, luego digite los dígitos restantes
+                Seleccione el juzgado por código o nombre, luego ingrese los 9 dígitos de la dependencia
               </p>
             </div>
 
@@ -557,7 +574,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
               <Label htmlFor="secuencialRadicado" className="text-xs text-muted-foreground">
                 {codigoJuzgado === "00"
                   ? "Número de radicado (formato libre)"
-                  : `Dígitos restantes (${codigoJuzgado ? 23 - codigoJuzgado.length : 23} dígitos)`}
+                  : `9 dígitos de la dependencia`}
               </Label>
               <Input
                 id="secuencialRadicado"
@@ -565,13 +582,13 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                   codigoJuzgado === "00"
                     ? "ej: DESAJMER25-9488"
                     : codigoJuzgado
-                      ? `Ingrese los ${23 - codigoJuzgado.length} dígitos restantes`
+                      ? "9 dígitos (ej: 201800187)"
                       : "Primero seleccione un juzgado"
                 }
                 value={secuencialRadicado}
                 onChange={(e) => handleSecuencialChange(e.target.value)}
                 disabled={isViewMode || (!codigoJuzgado && !secuencialRadicado)}
-                maxLength={codigoJuzgado === "00" ? undefined : codigoJuzgado ? 23 - codigoJuzgado.length : 23}
+                maxLength={codigoJuzgado === "00" ? undefined : 9}
                 className={errors.radicadoOrigen ? "border-destructive" : ""}
               />
             </div>
@@ -587,11 +604,11 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                 <p className="text-xs text-green-600 flex items-center gap-1">
                   <CheckCircle2 className="h-3 w-3" />Formato libre — {juzgadoInfo.nombre}
                 </p>
-              ) : formData.radicadoOrigen.length === 23 ? (
+              ) : (
                 <p className="text-xs text-green-600 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3" />Formato válido — {juzgadoInfo.nombre}
+                  <CheckCircle2 className="h-3 w-3" />Formato válido: 0-{codigoJuzgado}-{secuencialRadicado || "XXXXXXXXX"}-00 — {juzgadoInfo.nombre}
                 </p>
-              ) : null
+              )
             )}
           </div>
 

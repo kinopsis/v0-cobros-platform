@@ -37,9 +37,11 @@ async function main() {
   const supabase = createClient(supabaseUrl, supabaseKey)
   console.log("Conectado a Supabase:", supabaseUrl)
 
-  // Leer CSV
+  // Leer CSV con codificación latin1 (Windows-1252) para preservar caracteres españoles
   console.log("\nLeyendo archivo:", CSV_PATH)
-  const fileContent = readFileSync(CSV_PATH, "utf-8")
+  const fileBuffer = readFileSync(CSV_PATH)
+  // Leer como latin1 y luego convertir a UTF-8 para Postgres
+  const fileContent = fileBuffer.toString("latin1")
 
   const records = parse(fileContent, {
     columns: true,
