@@ -75,6 +75,26 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
     concepto: "",
   })
 
+  // Estado del radicado dividido: código juzgado + secuencial manual
+  const [codigoJuzgado, setCodigoJuzgado] = useState("")
+  const [secuencialRadicado, setSecuencialRadicado] = useState("")
+  const [codigosJuzgados, setCodigosJuzgados] = useState<{ value: string; label: string }[]>([])
+  const [juzgadoInfo, setJuzgadoInfo] = useState<{ codigo: string; nombre: string } | null>(null)
+  const [loadingCodigos, setLoadingCodigos] = useState(true)
+
+  // Función helper: longest-prefix-match para descomponer un radicado existente
+  const descomponerRadicado = (radicado: string) => {
+    if (!radicado || codigosJuzgados.length === 0) return { codigo: "", secuencial: radicado }
+    // Ordenar códigos por longitud descendente para longest-prefix-match
+    const sorted = [...codigosJuzgados].sort((a, b) => b.value.length - a.value.length)
+    for (const opt of sorted) {
+      if (radicado.startsWith(opt.value)) {
+        return { codigo: opt.value, secuencial: radicado.slice(opt.value.length) }
+      }
+    }
+    return { codigo: "", secuencial: radicado }
+  }
+
   const [sancionados, setSancionados] = useState<Partial<Sancionado>[]>([
     { id: "1", nombreCompleto: "", tipoDocumento: "CC", numeroDocumento: "", tipoPersona: "NATURAL", tipoSancion: "", cantidadSancion: "" }
   ])
@@ -128,8 +148,14 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
     setFormData(prev => ({ ...prev, concepto: value, naturaleza: naturalezaAuto }))
   }
 
-  // Validación de radicado de 23 dígitos
+  // Validación de radicado de 23 dígitos (excepto caso especial "00" = formato libre)
   const validateRadicado = (value: string) => {
+    if (!value) return ""
+    // Caso especial: código "00" = formato alfanumérico libre
+    if (codigoJuzgado === "00") {
+      if (value.length < 3) return "El radicado debe tener al menos 3 caracteres"
+      return ""
+    }
     const cleanValue = value.replace(/\D/g, "")
     if (cleanValue.length > 0 && cleanValue.length !== 23) {
       return "El radicado debe tener exactamente 23 dígitos"
@@ -155,6 +181,38 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
     // Validación en tiempo real para radicado
     if (field === "radicadoOrigen") {
       const error = validateRadicado(value)
+      setErrors(prev => ({ ...prev, radicadoOrigen: error }))
+    }
+  }
+
+  // Manejador de cambio del código de juzgado (Combobox)
+  const handleCodigoJuzgadoChange = (value: string) => {
+    setCodigoJuzgado(value)
+    const found = codigosJuzgados.find(c => c.value === value)
+    if (found) {
+      // Extraer el nombre del label (formato: "codigo — nombre")
+      const nombrePart = found.label.split(" — ").slice(1).join(" — ")
+      setJuzgadoInfo({ codigo: value, nombre: nombrePart || found.label })
+    } else {
+      setJuzgadoInfo(null)
+    }
+    // Consolidar radicado: código + secuencial
+    const consolidado = value === "00" ? secuencialRadicado : value + secuencialRadicado
+    setFormData(prev => ({ ...prev, radicadoOrigen: consolidado }))
+    if (consolidado) {
+      const error = validateRadicado(consolidado)
+      setErrors(prev => ({ ...prev, radicadoOrigen: error }))
+    }
+  }
+
+  // Manejador de cambio del secuencial (dígitos manuales)
+  const handleSecuencialChange = (value: string) => {
+    setSecuencialRadicado(value)
+    // Consolidar radicado: código + secuencial
+    const consolidado = codigoJuzgado === "00" ? value : codigoJuzgado + value
+    setFormData(prev => ({ ...prev, radicadoOrigen: consolidado }))
+    if (consolidado) {
+      const error = validateRadicado(consolidado)
       setErrors(prev => ({ ...prev, radicadoOrigen: error }))
     }
   }
@@ -339,6 +397,28 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
   const isViewMode = mode === "view"
   const isEditMode = mode === "edit" && solicitudId
 
+  // Cargar códigos de juzgados desde la API
+  useEffect(() => {
+    async function loadCodigos() {
+      try {
+        setLoadingCodigos(true)
+        const res = await fetch("/api/despachos/codigos")
+        if (!res.ok) return
+        const json = await res.json()
+        const options = (json.data || []).map((c: { codigo: string; nombre: string }) => ({
+          value: c.codigo,
+          label: `${c.codigo} — ${c.nombre}`,
+        }))
+        setCodigosJuzgados(options)
+      } catch {
+        // Silencioso: si falla la carga, el usuario puede digitar manualmente
+      } finally {
+        setLoadingCodigos(false)
+      }
+    }
+    loadCodigos()
+  }, [])
+
   // Cargar datos del borrador para edición
   useEffect(() => {
     if (!isEditMode || !solicitudId) return
@@ -353,6 +433,10 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
           naturaleza: data.clase_proceso || data.naturaleza || "",
           concepto: data.asunto || data.concepto || "",
         })
+        // Descomponer radicado existente (se ejecuta cuando codigosJuzgados ya estén cargados)
+        const decomposed = descomponerRadicado(data.radicado_origen || "")
+        setCodigoJuzgado(decomposed.codigo)
+        setSecuencialRadicado(decomposed.secuencial)
         if (data.sancionados?.length) {
           setSancionados(data.sancionados.map((s: any) => ({
             id: s.id || String(Math.random()),
@@ -432,29 +516,82 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Fila 1: Radicado de Origen */}
-          <div className="space-y-2">
-            <Label htmlFor="radicadoOrigen">
-              Radicado de Origen <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="radicadoOrigen"
-              placeholder="23 dígitos (ej: 05001310500120260001200)"
-              value={formData.radicadoOrigen}
-              onChange={(e) => handleInputChange("radicadoOrigen", e.target.value)}
-              disabled={isViewMode}
-              maxLength={23}
-              className={errors.radicadoOrigen ? "border-destructive" : ""}
-            />
+          {/* Fila 1: Radicado de Origen (código juzgado + secuencial) */}
+          <div className="space-y-4">
+            <div>
+              <Label>
+                Radicado de Origen <span className="text-destructive">*</span>
+              </Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Seleccione el juzgado por código o nombre, luego digite los dígitos restantes
+              </p>
+            </div>
+
+            {/* Selector de Juzgado */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Código del Juzgado</Label>
+              <ComboboxBuscable
+                options={codigosJuzgados}
+                value={codigoJuzgado}
+                onChange={handleCodigoJuzgadoChange}
+                placeholder={loadingCodigos ? "Cargando juzgados..." : "Buscar juzgado por código o nombre..."}
+                searchPlaceholder="Escriba código o nombre del juzgado..."
+                emptyText="No se encontraron juzgados"
+              />
+              {juzgadoInfo && (
+                <p className="text-xs text-emerald-600 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {juzgadoInfo.nombre}
+                </p>
+              )}
+              {codigoJuzgado && !juzgadoInfo && !loadingCodigos && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Código no encontrado en el catálogo. Puede continuar, pero verifique el juzgado.
+                </p>
+              )}
+            </div>
+
+            {/* Dígitos restantes */}
+            <div className="space-y-1.5">
+              <Label htmlFor="secuencialRadicado" className="text-xs text-muted-foreground">
+                {codigoJuzgado === "00"
+                  ? "Número de radicado (formato libre)"
+                  : `Dígitos restantes (${codigoJuzgado ? 23 - codigoJuzgado.length : 23} dígitos)`}
+              </Label>
+              <Input
+                id="secuencialRadicado"
+                placeholder={
+                  codigoJuzgado === "00"
+                    ? "ej: DESAJMER25-9488"
+                    : codigoJuzgado
+                      ? `Ingrese los ${23 - codigoJuzgado.length} dígitos restantes`
+                      : "Primero seleccione un juzgado"
+                }
+                value={secuencialRadicado}
+                onChange={(e) => handleSecuencialChange(e.target.value)}
+                disabled={isViewMode || (!codigoJuzgado && !secuencialRadicado)}
+                maxLength={codigoJuzgado === "00" ? undefined : codigoJuzgado ? 23 - codigoJuzgado.length : 23}
+                className={errors.radicadoOrigen ? "border-destructive" : ""}
+              />
+            </div>
+
+            {/* Validación del radicado consolidado */}
             {errors.radicadoOrigen && (
               <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />{errors.radicadoOrigen}
               </p>
             )}
-            {formData.radicadoOrigen && !errors.radicadoOrigen && formData.radicadoOrigen.length === 23 && (
-              <p className="text-xs text-green-600 flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" />Formato válido
-              </p>
+            {formData.radicadoOrigen && !errors.radicadoOrigen && codigoJuzgado && juzgadoInfo && (
+              codigoJuzgado === "00" ? (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />Formato libre — {juzgadoInfo.nombre}
+                </p>
+              ) : formData.radicadoOrigen.length === 23 ? (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />Formato válido — {juzgadoInfo.nombre}
+                </p>
+              ) : null
             )}
           </div>
 
