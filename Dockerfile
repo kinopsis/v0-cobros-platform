@@ -28,7 +28,6 @@ COPY public/ ./public/
 COPY styles/ ./styles/
 COPY next.config.mjs tsconfig.json postcss.config.mjs package.json ./
 
-# Regenerar archivos criticos si Coolify los excluyo del build context
 RUN mkdir -p lib/supabase && \
     if [ ! -f lib/supabase/admin.ts ]; then \
       printf 'import { createClient } from "@supabase/supabase-js"\nexport function createAdminClient() {\n  return createClient(\n    process.env.NEXT_PUBLIC_SUPABASE_URL!,\n    process.env.SUPABASE_SERVICE_ROLE_KEY!,\n    { auth: { autoRefreshToken: false, persistSession: false } }\n  )\n}\n' > lib/supabase/admin.ts ; \
@@ -68,6 +67,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/auth/csrf || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/auth/csrf || exit 1
 
 CMD ["node", "server.js"]
