@@ -81,7 +81,8 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  UserPlus
+  UserPlus,
+  Pencil
 } from "lucide-react"
 
 interface SolicitudUI {
@@ -417,6 +418,14 @@ export default function SolicitudesPage() {
                                   Ver detalle
                                 </Link>
                               </DropdownMenuItem>
+                              {solicitud.estado === "BORRADOR" && (
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/solicitudes/nueva?edit=${solicitud.id}`}>
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Editar borrador
+                                  </Link>
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => window.print()}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Descargar comprobante

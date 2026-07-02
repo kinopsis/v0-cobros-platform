@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -62,7 +62,7 @@ interface SolicitudFormProps {
   solicitudId?: string
 }
 
-export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormProps) {
+export function SolicitudForm({ mode = "create" }: SolicitudFormProps) {
   const router = useRouter()
   const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -123,9 +123,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
   }
 
   const handleConceptoChange = (value: string) => {
-    const opciones = NATURALEZA_OPTIONS[value] || []
-    const naturalezaAuto = opciones.length === 1 ? opciones[0] : ""
-    setFormData(prev => ({ ...prev, concepto: value, naturaleza: naturalezaAuto }))
+    setFormData(prev => ({ ...prev, concepto: value, naturaleza: "" }))
   }
 
   // Validación de radicado de 23 dígitos
@@ -163,9 +161,6 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
     setSancionados(prev => {
       const updated = [...prev]
       updated[index] = { ...updated[index], [field]: value }
-      if (field === "tipoPersona") {
-        updated[index].tipoDocumento = value === "JURIDICA" ? "NIT" : "CC"
-      }
       return updated
     })
   }
@@ -229,25 +224,16 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
 
     // Validar sancionados
     sancionados.forEach((s, index) => {
-      if (!s.tipoPersona) {
-        newErrors[`sancionado_${index}_tipo`] = "Seleccione el tipo de sancionado"
+      if (!s.nombreCompleto) {
+        newErrors[`sancionado_${index}_nombre`] = "El nombre es requerido"
       }
       if (!s.numeroDocumento) {
-        newErrors[`sancionado_${index}_documento`] = "Ingrese el número de documento"
-      }
-      if (!s.nombreCompleto) {
-        newErrors[`sancionado_${index}_nombre`] = "Ingrese el nombre completo"
-      }
-      if (!s.tipoSancion) {
-        newErrors[`sancionado_${index}_tipoSancion`] = "Seleccione PESOS o SMMLV"
-      }
-      if (!s.cantidadSancion) {
-        newErrors[`sancionado_${index}_valor`] = "Ingrese el valor de la sanción"
+        newErrors[`sancionado_${index}_documento`] = "El documento es requerido"
       }
     })
 
     if (documentos.length === 0) {
-      newErrors.documentos = "Debe adjuntar al menos un documento PDF"
+      newErrors.documentos = "Debe adjuntar al menos un documento"
     }
 
     setErrors(newErrors)
@@ -276,22 +262,18 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
         fd.append("documentos", file)
       }
 
-      const url = isEditMode ? `/api/solicitudes/${solicitudId}` : "/api/solicitudes"
-      const method = isEditMode ? "PATCH" : "POST"
-      if (isEditMode) fd.append("estado", "EN_VALIDACION")
-
-      const res = await fetch(url, { method, body: fd })
+      const res = await fetch("/api/solicitudes", { method: "POST", body: fd })
       if (!res.ok) throw new Error((await res.json()).error || "Error al enviar")
       
       const result = await res.json()
       
       if (result.documentos?.errores?.length > 0) {
-        toast.warning(`${result.documentos.subidos} docs subidos`)
+        toast.warning(`${result.documentos.subidos} de ${result.documentos.subidos + result.documentos.errores.length} documentos subidos. Errores: ${result.documentos.errores.join(", ")}`)
       } else {
-        toast.success(isEditMode ? "Solicitud enviada a validación" : "Solicitud radicada exitosamente")
+        toast.success("Solicitud radicada exitosamente")
       }
       
-      router.push(`/solicitudes/${result.data?.id || solicitudId}`)
+      router.push(`/solicitudes/${result.data.id}`)
     } catch (err: any) {
       toast.error(err.message || "Error al enviar la solicitud")
     } finally {
@@ -308,13 +290,11 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
       fd.append("concepto", formData.concepto)
       fd.append("sancionados", JSON.stringify(sancionados))
       fd.append("etapa_preliminar", JSON.stringify(etapaPreliminar))
-      fd.append("estado", "BORRADOR")
       
       const res = await fetch("/api/solicitudes", { method: "POST", body: fd })
       if (!res.ok) throw new Error((await res.json()).error || "Error al guardar")
       
-      const result = await res.json()
-      toast.success("Borrador guardado", { description: `ID: ${result.data.id}` })
+      toast.success("Borrador guardado correctamente")
     } catch (err: any) {
       toast.error(err.message || "Error al guardar el borrador")
     } finally {
@@ -323,45 +303,6 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
   }
 
   const isViewMode = mode === "view"
-  const isEditMode = mode === "edit" && solicitudId
-
-  // Cargar datos del borrador para edición
-  useEffect(() => {
-    if (!isEditMode || !solicitudId) return
-    async function loadSolicitud() {
-      try {
-        const res = await fetch(`/api/solicitudes/${solicitudId}`)
-        if (!res.ok) return
-        const { data } = await res.json()
-        if (data.estado !== "BORRADOR") { toast.error("Solo se pueden editar borradores"); router.push("/solicitudes"); return }
-        setFormData({
-          radicadoOrigen: data.radicado_origen || "",
-          naturaleza: data.clase_proceso || data.naturaleza || "",
-          concepto: data.asunto || data.concepto || "",
-        })
-        if (data.sancionados?.length) {
-          setSancionados(data.sancionados.map((s: any) => ({
-            id: s.id || String(Math.random()),
-            nombreCompleto: s.nombre_completo || "",
-            tipoDocumento: s.tipo_documento || "CC",
-            numeroDocumento: s.numero_documento || "",
-            tipoPersona: s.tipo_persona || "NATURAL",
-            tipoSancion: s.tipo_sancion || "",
-            cantidadSancion: s.cantidad_sancion || "",
-            ciudad: s.ciudad || "",
-            direccion: s.direccion || "",
-          })))
-        }
-        if (data.etapa_preliminar) {
-          setEtapaPreliminar({
-            providencia: data.etapa_preliminar.providencia ? new Date(data.etapa_preliminar.providencia) : null,
-            ejecutoria: data.etapa_preliminar.ejecutoria ? new Date(data.etapa_preliminar.ejecutoria) : null,
-          })
-        }
-      } catch { }
-    }
-    loadSolicitud()
-  }, [solicitudId, isEditMode])
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -477,7 +418,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
               <Select
                 value={formData.naturaleza}
                 onValueChange={(value) => handleInputChange("naturaleza", value)}
-                disabled={Boolean(isViewMode || (formData.concepto && formData.concepto !== "MULTA"))}
+                disabled={isViewMode || !formData.concepto}
               >
                 <SelectTrigger className={errors.naturaleza ? "border-destructive" : ""}>
                   <SelectValue placeholder={formData.concepto ? "Seleccione..." : "Primero seleccione Concepto"} />
@@ -578,29 +519,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
               )}
               
               <div className="space-y-3">
-                {/* Fila 1: Tipo de Sancionado */}
-                <div className="space-y-2">
-                  <Label>Tipo de Sancionado</Label>
-                  <Select
-                    value={sancionado.tipoPersona}
-                    onValueChange={(value) => handleSancionadoChange(index, "tipoPersona", value as TipoPersona)}
-                    disabled={isViewMode}
-                  >
-                    <SelectTrigger className={errors[`sancionado_${index}_tipo`] ? "border-destructive" : ""}>
-                      <SelectValue placeholder="Seleccione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(TIPO_PERSONA_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors[`sancionado_${index}_tipo`] && (
-                    <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors[`sancionado_${index}_tipo`]}</p>
-                  )}
-                </div>
-
-                {/* Fila 2: Tipo Documento + Número Documento */}
+                {/* Fila 1: Tipo Documento + Número Documento */}
                 <div className="grid gap-4 grid-cols-[30%_70%]">
                   <div className="space-y-2">
                     <Label>Tipo de Documento</Label>
@@ -630,30 +549,43 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                       disabled={isViewMode}
                       className={errors[`sancionado_${index}_documento`] ? "border-destructive" : ""}
                     />
-                    {errors[`sancionado_${index}_documento`] && (
-                      <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors[`sancionado_${index}_documento`]}</p>
-                    )}
                   </div>
                 </div>
 
-                {/* Fila 3: Nombre Completo */}
-                <div className="space-y-2">
-                  <Label>
-                    Nombre Completo <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    placeholder="Nombre completo o razón social"
-                    value={sancionado.nombreCompleto || ""}
-                    onChange={(e) => handleSancionadoChange(index, "nombreCompleto", e.target.value)}
-                    disabled={isViewMode}
-                    className={errors[`sancionado_${index}_nombre`] ? "border-destructive" : ""}
-                  />
-                  {errors[`sancionado_${index}_nombre`] && (
-                    <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors[`sancionado_${index}_nombre`]}</p>
-                  )}
+                {/* Fila 2: Tipo Persona + Nombre Completo */}
+                <div className="grid gap-4 grid-cols-[30%_70%]">
+                  <div className="space-y-2">
+                    <Label>Tipo de Persona</Label>
+                    <Select
+                      value={sancionado.tipoPersona}
+                      onValueChange={(value) => handleSancionadoChange(index, "tipoPersona", value as TipoPersona)}
+                      disabled={isViewMode}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(TIPO_PERSONA_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>
+                      Nombre Completo <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      placeholder="Nombre completo o razón social"
+                      value={sancionado.nombreCompleto || ""}
+                      onChange={(e) => handleSancionadoChange(index, "nombreCompleto", e.target.value)}
+                      disabled={isViewMode}
+                      className={errors[`sancionado_${index}_nombre`] ? "border-destructive" : ""}
+                    />
+                  </div>
                 </div>
 
-                {/* Fila 4: Valor Sanción */}
+                {/* Fila 3: Valor Sanción */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-muted-foreground">Valor Sanción</Label>
                   <div className="grid gap-4 grid-cols-[30%_70%]">
@@ -672,9 +604,6 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                           <SelectItem value="SMMLV">SMMLV</SelectItem>
                         </SelectContent>
                       </Select>
-                      {errors[`sancionado_${index}_tipoSancion`] && (
-                        <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors[`sancionado_${index}_tipoSancion`]}</p>
-                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`cantidadSancion_${index}`}>Valor Sanción</Label>
@@ -684,16 +613,12 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                         value={sancionado.cantidadSancion || ""}
                         onChange={(e) => handleSancionadoChange(index, "cantidadSancion", e.target.value)}
                         disabled={isViewMode}
-                        className={errors[`sancionado_${index}_valor`] ? "border-destructive" : ""}
                       />
-                      {errors[`sancionado_${index}_valor`] && (
-                        <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors[`sancionado_${index}_valor`]}</p>
-                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Fila 5: Ciudad + Dirección */}
+                {/* Fila 4: Ciudad + Dirección */}
                 <div className="grid gap-4 grid-cols-[30%_70%]">
                   <div className="space-y-2">
                     <Label>Ciudad</Label>

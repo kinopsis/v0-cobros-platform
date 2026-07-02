@@ -33,6 +33,7 @@ export type TipoDocumento = "CC" | "NIT" | "OTRO"
 export type TipoPersona = "NATURAL" | "JURIDICA"
 
 export type EstadoSolicitud = 
+  | "BORRADOR"
   | "EN_VALIDACION"
   | "RADICADA_EN_SIGOBIUS"
   | "ASIGNADA_A_ABOGADO"
@@ -235,6 +236,7 @@ export const CLASE_PROCESO_LABELS = NATURALEZA_LABELS
 export const ASUNTO_LABELS = CONCEPTO_LABELS
 
 export const ESTADO_LABELS: Record<EstadoSolicitud, string> = {
+  BORRADOR: "Borrador",
   EN_VALIDACION: "En Validación",
   RADICADA_EN_SIGOBIUS: "Radicada en SIGOBIUS",
   ASIGNADA_A_ABOGADO: "Asignada a Abogado",
@@ -244,6 +246,7 @@ export const ESTADO_LABELS: Record<EstadoSolicitud, string> = {
 }
 
 export const ESTADO_COLORS: Record<EstadoSolicitud, string> = {
+  BORRADOR: "bg-gray-100 text-gray-600",
   EN_VALIDACION: "bg-yellow-100 text-yellow-800",
   RADICADA_EN_SIGOBIUS: "bg-emerald-100 text-emerald-800",
   ASIGNADA_A_ABOGADO: "bg-indigo-100 text-indigo-800",
