@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/lib/auth-context"
-import { mockSolicitudes } from "@/lib/mock-data"
 import { 
   ESTADO_LABELS, 
   ESTADO_COLORS, 
@@ -42,27 +41,47 @@ import {
   CheckCircle2,
   AlertTriangle,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from "lucide-react"
 
 export default function CasosPage() {
   const { user } = useAuth()
+  const [solicitudes, setSolicitudes] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("todos")
 
-  // Filtrar casos del abogado actual
-  const misCasos = mockSolicitudes.filter(
-    s => s.abogadoAsignadoId === user?.id
-  )
+  // Cargar casos desde API
+  useEffect(() => {
+    async function fetchCasos() {
+      try {
+        const res = await fetch("/api/solicitudes")
+        if (!res.ok) throw new Error("Error al cargar")
+        const json = await res.json()
+        setSolicitudes(json.data || [])
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchCasos()
+  }, [])
+
+  // Filtrar casos del abogado actual (el API ya filtra por rol ABOGADO)
+  const misCasos = solicitudes
 
   const casosActivos = misCasos.filter(
-    s => !["CERRADA", "TERMINADA_SIN_PAGO"].includes(s.estado)
+    (s: any) => s.estado !== "RADICADA_EN_GCC"
   )
   const casosCerrados = misCasos.filter(
-    s => ["CERRADA", "TERMINADA_SIN_PAGO"].includes(s.estado)
+    (s: any) => s.estado === "RADICADA_EN_GCC"
   )
-  const casosConAlerta = casosActivos.filter(s => {
-    const diasTranscurridos = differenceInDays(new Date(), s.fechaAsignacion || s.fechaSolicitud)
+  const casosConAlerta = casosActivos.filter((s: any) => {
+    const fechaRef = s.fecha_asignacion || s.fecha_solicitud
+    if (!fechaRef) return false
+    const diasTranscurridos = differenceInDays(new Date(), new Date(fechaRef))
     return diasTranscurridos > 15
   })
 
@@ -81,11 +100,13 @@ export default function CasosPage() {
         break
     }
     
-    return casos.filter(s => 
-      s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.radicadoOrigen.includes(searchQuery) ||
-      s.nombreJuzgado.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.sancionados.some(san => san.nombreCompleto.toLowerCase().includes(searchQuery.toLowerCase()))
+    return casos.filter((s: any) => 
+      (s.id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.radicado_origen || "").includes(searchQuery) ||
+      (s.nombre_juzgado || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.sancionados || []).some((san: any) => 
+        (san.nombre_completo || "").toLowerCase().includes(searchQuery.toLowerCase())
+      )
     )
   }
 
@@ -168,6 +189,11 @@ export default function CasosPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center h-24">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -190,11 +216,9 @@ export default function CasosPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCasos.map((caso) => {
-                    const diasTranscurridos = differenceInDays(
-                      new Date(), 
-                      caso.fechaAsignacion || caso.fechaSolicitud
-                    )
+                  filteredCasos.map((caso: any) => {
+                    const fechaRef = caso.fecha_asignacion || caso.fecha_solicitud
+                    const diasTranscurridos = fechaRef ? differenceInDays(new Date(), new Date(fechaRef)) : 0
                     const tieneAlerta = diasTranscurridos > 15
 
                     return (
@@ -207,9 +231,9 @@ export default function CasosPage() {
                             >
                               {caso.id}
                             </Link>
-                            {caso.radicadoSIGOBIUS && (
+                            {caso.radicado_sigobius && (
                               <p className="text-xs text-muted-foreground font-mono">
-                                {caso.radicadoSIGOBIUS}
+                                {caso.radicado_sigobius}
                               </p>
                             )}
                           </div>
@@ -217,27 +241,27 @@ export default function CasosPage() {
                         <TableCell>
                           <div className="flex items-center gap-1 text-sm">
                             <Calendar className="h-3 w-3 text-muted-foreground" />
-                            {format(caso.fechaAsignacion || caso.fechaSolicitud, "d MMM", { locale: es })}
+                            {format(new Date(fechaRef), "d MMM", { locale: es })}
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
-                            {CLASE_PROCESO_LABELS[caso.claseProceso]}
+                            {CLASE_PROCESO_LABELS[caso.clase_proceso as keyof typeof CLASE_PROCESO_LABELS] || caso.clase_proceso}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="max-w-[120px] truncate text-sm">
-                            {caso.sancionados[0]?.nombreCompleto}
+                            {caso.sancionados?.[0]?.nombre_completo || "—"}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="max-w-[120px] truncate text-sm text-muted-foreground">
-                            {caso.nombreJuzgado}
+                            {caso.nombre_juzgado || "—"}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={`text-xs ${ESTADO_COLORS[caso.estado]}`}>
-                            {ESTADO_LABELS[caso.estado]}
+                          <Badge className={`text-xs ${ESTADO_COLORS[caso.estado as keyof typeof ESTADO_COLORS] || ''}`}>
+                            {ESTADO_LABELS[caso.estado as keyof typeof ESTADO_LABELS] || caso.estado}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -279,6 +303,7 @@ export default function CasosPage() {
               </TableBody>
             </Table>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

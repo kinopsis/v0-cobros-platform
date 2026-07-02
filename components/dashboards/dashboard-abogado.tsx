@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,71 +13,126 @@ import {
   AlertTriangle, 
   ArrowRight,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  Users,
+  FileText,
+  DollarSign,
+  Loader2,
+  Undo2
 } from "lucide-react"
-import { mockSolicitudes } from "@/lib/mock-data"
 import { useAuth } from "@/lib/auth-context"
 import { ESTADO_LABELS, ESTADO_COLORS, CLASE_PROCESO_LABELS, PRIORIDAD_COLORS, PRIORIDAD_LABELS } from "@/lib/types"
 import { format, differenceInDays } from "date-fns"
 import { es } from "date-fns/locale"
+import { convertirSancionACOP, formatCOP } from "@/lib/utils"
 
 export function DashboardAbogado() {
   const { user } = useAuth()
-  
+  const [misCasos, setMisCasos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/solicitudes?limit=100")
+      .then(r => r.json())
+      .then(res => setMisCasos(res.data || []))
+      .finally(() => setLoading(false))
+  }, [])
+
   if (!user) return null
 
-  // Filtrar casos asignados al abogado actual
-  const misCasos = mockSolicitudes.filter(
-    s => s.abogadoAsignadoId === user.id
-  )
-  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
   const casosActivos = misCasos.filter(
-    s => !["CERRADA", "TERMINADA_SIN_PAGO"].includes(s.estado)
+    (s: any) => s.estado !== "RADICADA_EN_GCC"
   )
   const casosCerrados = misCasos.filter(
-    s => ["CERRADA", "TERMINADA_SIN_PAGO"].includes(s.estado)
+    (s: any) => s.estado === "RADICADA_EN_GCC"
   )
-  const casosConAlerta = casosActivos.filter(s => {
-    const diasTranscurridos = differenceInDays(new Date(), s.fechaAsignacion || s.fechaSolicitud)
+  const casosEnProceso = casosActivos.filter(
+    (s: any) => s.estado === "ASIGNADA_A_ABOGADO"
+  )
+  const casosDevueltos = casosActivos.filter(
+    (s: any) => s.estado === "DEVUELTA_POR_ABOGADO"
+  )
+  const casosConAlerta = casosActivos.filter((s: any) => {
+    const fechaRef = s.fecha_asignacion || s.fecha_solicitud
+    if (!fechaRef) return false
+    const diasTranscurridos = differenceInDays(new Date(), new Date(fechaRef))
     return diasTranscurridos > 15
   })
-  const casosEnProceso = casosActivos.filter(
-    s => s.estado === "EN_PROCESO"
-  )
 
-  // Calcular tiempo promedio
-  const tiemposGestion = casosCerrados.map(c => {
-    if (c.fechaCierre && c.fechaAsignacion) {
-      return differenceInDays(c.fechaCierre, c.fechaAsignacion)
-    }
-    return 0
-  }).filter(t => t > 0)
-  
-  const tiempoPromedio = tiemposGestion.length > 0 
-    ? Math.round(tiemposGestion.reduce((a, b) => a + b, 0) / tiemposGestion.length) 
+  // Calcular # Sancionados y Valor Total de Sanciones (mis casos)
+  const totalSancionados = misCasos.reduce(
+    (sum: number, s: any) => sum + (s.sancionados || []).length, 0
+  )
+  const valorTotalSancionesCOP = misCasos.reduce((sum: number, s: any) => {
+    const ejecutoria = s.etapa_preliminar?.ejecutoria
+    return sum + (s.sancionados || []).reduce((acc: number, san: any) =>
+      acc + convertirSancionACOP(san.cantidad_sancion, san.tipo_sancion, ejecutoria), 0
+    )
+  }, 0)
+
+  // Capacidad
+  const capacidadUsada = user.capacidadMaxima 
+    ? Math.round((casosActivos.length / user.capacidadMaxima) * 100) 
     : 0
 
-  const stats = [
+  // 3 KPIs principales
+  const kpisPrincipales = [
     {
-      title: "Casos Activos",
-      value: casosActivos.length,
-      icon: Briefcase,
-      description: "Asignados actualmente",
-      color: "text-blue-600"
+      title: "Sancionados",
+      value: totalSancionados,
+      icon: Users,
+      description: "Personas en mis casos",
+      color: "text-amber-600",
+      bg: "bg-amber-50 dark:bg-amber-950/20"
     },
+    {
+      title: "Mis Solicitudes",
+      value: misCasos.length,
+      icon: FileText,
+      description: `${casosActivos.length} activas · ${casosCerrados.length} cerradas`,
+      color: "text-blue-600",
+      bg: "bg-blue-50 dark:bg-blue-950/20"
+    },
+    {
+      title: "Valor Total Sanciones",
+      value: formatCOP(valorTotalSancionesCOP),
+      icon: DollarSign,
+      description: "Suma convertida a COP",
+      color: "text-green-600",
+      bg: "bg-green-50 dark:bg-green-950/20"
+    }
+  ]
+
+  // KPIs secundarios
+  const kpisSecundarios = [
     {
       title: "En Proceso",
       value: casosEnProceso.length,
-      icon: Clock,
+      icon: Briefcase,
       description: "Trabajando activamente",
       color: "text-cyan-600"
     },
     {
-      title: "Cerrados este mes",
+      title: "Radicados GCC",
       value: casosCerrados.length,
       icon: CheckCircle2,
       description: "Finalizados",
       color: "text-green-600"
+    },
+    {
+      title: "Devueltos",
+      value: casosDevueltos.length,
+      icon: Undo2,
+      description: "Requieren corrección",
+      color: "text-orange-600"
     },
     {
       title: "Alertas",
@@ -86,11 +142,6 @@ export function DashboardAbogado() {
       color: "text-red-600"
     }
   ]
-
-  // Capacidad
-  const capacidadUsada = user.capacidadMaxima 
-    ? Math.round((casosActivos.length / user.capacidadMaxima) * 100) 
-    : 0
 
   return (
     <div className="space-y-6">
@@ -114,9 +165,27 @@ export function DashboardAbogado() {
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* 3 KPIs Principales */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {kpisPrincipales.map((stat) => (
+          <Card key={stat.title} className={stat.bg}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {stat.title}
+              </CardTitle>
+              <stat.icon className={`h-5 w-5 ${stat.color}`} />
+            </CardHeader>
+            <CardContent>
+              <span className="text-3xl font-bold">{stat.value}</span>
+              <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* KPIs Secundarios */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {kpisSecundarios.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -146,8 +215,8 @@ export function DashboardAbogado() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {casosConAlerta.map((caso) => {
-                const diasTranscurridos = differenceInDays(new Date(), caso.fechaAsignacion || caso.fechaSolicitud)
+              {casosConAlerta.slice(0, 5).map((caso: any) => {
+                const diasTranscurridos = differenceInDays(new Date(), new Date(caso.fecha_asignacion || caso.fecha_solicitud))
                 return (
                   <div
                     key={caso.id}
@@ -161,7 +230,7 @@ export function DashboardAbogado() {
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {CLASE_PROCESO_LABELS[caso.claseProceso]} - {caso.sancionados[0]?.nombreCompleto}
+                        {caso.clase_proceso?.replace(/_/g, " ")} - {caso.sancionados?.[0]?.nombre_completo}
                       </p>
                     </div>
                     <Button variant="outline" size="sm" asChild>
@@ -206,7 +275,7 @@ export function DashboardAbogado() {
                   No tienes casos activos asignados
                 </p>
               ) : (
-                casosActivos.slice(0, 5).map((caso) => (
+                casosActivos.slice(0, 5).map((caso: any) => (
                   <div
                     key={caso.id}
                     className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
@@ -216,23 +285,23 @@ export function DashboardAbogado() {
                         <p className="font-medium text-sm">{caso.id}</p>
                         <Badge 
                           variant="secondary" 
-                          className={ESTADO_COLORS[caso.estado]}
+                          className={(ESTADO_COLORS as Record<string, string>)[caso.estado]}
                         >
-                          {ESTADO_LABELS[caso.estado]}
+                          {(ESTADO_LABELS as Record<string, string>)[caso.estado]}
                         </Badge>
                         <Badge 
                           variant="outline" 
-                          className={PRIORIDAD_COLORS[caso.prioridad]}
+                          className={(PRIORIDAD_COLORS as Record<string, string>)[caso.prioridad || 'MEDIA']}
                         >
-                          {PRIORIDAD_LABELS[caso.prioridad]}
+                          {(PRIORIDAD_LABELS as Record<string, string>)[caso.prioridad || 'MEDIA']}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {CLASE_PROCESO_LABELS[caso.claseProceso]} - {caso.sancionados[0]?.nombreCompleto}
+                        {caso.clase_proceso?.replace(/_/g, " ")} - {caso.sancionados?.[0]?.nombre_completo}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
-                        Asignado: {format(caso.fechaAsignacion || caso.fechaSolicitud, "d MMM yyyy", { locale: es })}
+                        Asignado: {caso.fecha_asignacion ? format(new Date(caso.fecha_asignacion), "d MMM yyyy", { locale: es }) : "Sin fecha"}
                       </div>
                     </div>
                     <Button variant="ghost" size="sm" asChild>
@@ -271,12 +340,28 @@ export function DashboardAbogado() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Tiempo Promedio de Gestión
+                Resumen de Casos
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tiempoPromedio} días</div>
-              <p className="text-xs text-muted-foreground">Desde asignación hasta cierre</p>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total asignados</span>
+                  <span className="font-bold">{misCasos.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">En proceso (asignados)</span>
+                  <span className="font-bold">{casosEnProceso.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Radicados en GCC</span>
+                  <span className="font-bold text-green-600">{casosCerrados.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Valor sanciones gestionado</span>
+                  <span className="font-bold text-green-600">{formatCOP(valorTotalSancionesCOP)}</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -290,7 +375,7 @@ export function DashboardAbogado() {
               <div className="flex flex-wrap gap-2">
                 {user.especialidades?.map((esp) => (
                   <Badge key={esp} variant="secondary">
-                    {CLASE_PROCESO_LABELS[esp]}
+                    {(CLASE_PROCESO_LABELS as Record<string, string>)[esp] || esp}
                   </Badge>
                 ))}
               </div>

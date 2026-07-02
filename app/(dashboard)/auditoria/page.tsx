@@ -92,7 +92,7 @@ export default function AuditoriaPage() {
   })
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6 lg:p-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Auditoría del Sistema</h1>
         <p className="text-muted-foreground mt-2">Registro de todas las operaciones y accesos al sistema</p>

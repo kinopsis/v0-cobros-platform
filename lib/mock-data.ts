@@ -7,6 +7,7 @@ import {
   Notificacion,
   LogAuditoria
 } from "./types"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 // Usuarios de prueba
 export const mockUsuarios: Usuario[] = [
@@ -597,18 +598,38 @@ export function getSolicitudesByJuzgado(codigoDespacho: string): Solicitud[] {
   return mockSolicitudes.filter(s => s.codigoDespacho === codigoDespacho)
 }
 
-// Helper para generar nuevo ID de solicitud
-export function generateSolicitudId(): string {
+// Helper para generar nuevo ID de solicitud (consulta BD real)
+export async function generateSolicitudId(supabase: SupabaseClient): Promise<string> {
   const year = new Date().getFullYear()
-  const count = mockSolicitudes.length + 1
-  return `SOL-${year}-${count.toString().padStart(5, '0')}`
+  const { count, error } = await supabase
+    .from("solicitudes")
+    .select("*", { count: "exact", head: true })
+  
+  if (error) {
+    console.error("Error al contar solicitudes:", error)
+    // Fallback: usar timestamp para evitar colisión
+    return `SOL-${year}-${Date.now().toString(36).toUpperCase().slice(-5)}`
+  }
+  
+  const nextNumber = (count || 0) + 1
+  return `SOL-${year}-${String(nextNumber).padStart(5, '0')}`
 }
 
-// Helper para generar radicado SIGOBIUS
-export function generateRadicadoSIGOBIUS(): string {
+// Helper para generar radicado SIGOBIUS (consulta BD real)
+export async function generateRadicadoSIGOBIUS(supabase: SupabaseClient): Promise<string> {
   const year = new Date().getFullYear().toString().slice(-2)
-  const count = mockSolicitudes.filter(s => s.radicadoSIGOBIUS).length + 1
-  return `EXT-DESAJ-ME${year}-${count.toString().padStart(5, '0')}`
+  const { count, error } = await supabase
+    .from("solicitudes")
+    .select("*", { count: "exact", head: true })
+    .not("radicado_sigobius", "is", null)
+  
+  if (error) {
+    console.error("Error al contar radicados:", error)
+    return `EXT-DESAJ-ME${year}-${Date.now().toString(36).toUpperCase().slice(-5)}`
+  }
+  
+  const nextNumber = (count || 0) + 1
+  return `EXT-DESAJ-ME${year}-${String(nextNumber).padStart(5, '0')}`
 }
 
 // Alertas

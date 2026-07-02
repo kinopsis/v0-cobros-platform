@@ -42,6 +42,7 @@ import {
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
+import { DocumentViewerDialog } from "@/components/pdf-viewer/document-viewer-dialog"
 import { 
   ArrowLeft, 
   Building2, 
@@ -74,6 +75,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
   const [abogadoSeleccionado, setAbogadoSeleccionado] = useState("")
   const [radicadoSIGOBIUS, setRadicadoSIGOBIUS] = useState("")
   const [radicadoError, setRadicadoError] = useState("")
+  const [viewingDoc, setViewingDoc] = useState<{ nombre: string; url: string; tipo?: string } | null>(null)
 
   const solicitud = mockSolicitudes.find(s => s.id === id)
   const abogados = mockUsuarios.filter(u => u.rol === "ABOGADO" && u.activo)
@@ -155,7 +157,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
     router.push("/gestion")
   }
 
-  const canValidate = solicitud.estado === "RECIBIDA" || solicitud.estado === "EN_VALIDACION"
+  const canValidate = solicitud.estado === "EN_VALIDACION"
   const canAssign = solicitud.estado === "RADICADA_EN_SIGOBIUS"
 
   return (
@@ -319,10 +321,16 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
                         </p>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm">
-                      <Download className="mr-2 h-4 w-4" />
-                      Ver
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="sm" onClick={() => setViewingDoc({ nombre: doc.nombre, url: doc.url, tipo: doc.tipo })}>
+                        Ver
+                      </Button>
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={doc.url} download={doc.nombre} target="_blank" rel="noopener noreferrer">
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -424,6 +432,12 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
       </div>
+
+      <DocumentViewerDialog
+        open={!!viewingDoc}
+        onOpenChange={(o) => !o && setViewingDoc(null)}
+        document={viewingDoc}
+      />
 
       {/* Dialog de radicación manual SIGOBIUS */}
       <Dialog open={showRadicacionDialog} onOpenChange={(open) => {
@@ -599,15 +613,15 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
+                      <div className="flex items-center gap-2 sm:gap-4">
+                        <div className="text-right shrink-0">
                           <p className="text-sm font-medium">{abogado.casosActivos}/{abogado.capacidadMaxima}</p>
                           <p className="text-xs text-muted-foreground">casos</p>
                         </div>
-                        <div className="w-20">
+                        <div className="w-16 sm:w-20 shrink-0">
                           <Progress value={cargaPorcentaje} className="h-2" />
                         </div>
-                        <Badge className={DISPONIBILIDAD_COLORS[abogado.disponibilidad || 'DISPONIBLE']}>
+                        <Badge className={`${DISPONIBILIDAD_COLORS[abogado.disponibilidad || 'DISPONIBLE']} shrink-0`}>
                           {DISPONIBILIDAD_LABELS[abogado.disponibilidad || 'DISPONIBLE']}
                         </Badge>
                       </div>

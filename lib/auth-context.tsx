@@ -1,57 +1,75 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { SessionProvider, useSession, signIn, signOut } from "next-auth/react"
+import { createContext, useContext, type ReactNode } from "react"
 import { Usuario, UserRole } from "./types"
-import { mockUsuarios } from "./mock-data"
 
 interface AuthContextType {
   user: Usuario | null
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<boolean>
+  isLoading: boolean
+  isOffice365Enabled: boolean
+  login: () => void
+  loginWithCredentials: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
-  switchRole: (role: UserRole) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Usuario | null>(null)
+function AuthProviderInner({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession()
 
-  const login = useCallback(async (email: string, _password: string): Promise<boolean> => {
-    // Simulación de autenticación
-    const foundUser = mockUsuarios.find(u => u.email === email && u.activo)
-    
-    if (foundUser) {
-      setUser(foundUser)
-      return true
+  // Flag publico para mostrar/ocultar el boton de Office 365 sin exponer secretos.
+  const isOffice365Enabled = process.env.NEXT_PUBLIC_AZURE_AD_ENABLED === "true"
+
+  const user: Usuario | null = session?.user
+    ? {
+        id: session.user.usuarioId || "",
+        email: session.user.email || "",
+        nombre: session.user.nombre || session.user.name || "",
+        rol: (session.user.rol as UserRole) || "JUZGADO",
+        activo: true,
+        codigoDespacho: session.user.codigoDespacho || "",
+        nombreJuzgado: session.user.nombreJuzgado || "",
+      }
+    : null
+
+  const loginWithCredentials = async (email: string, password: string) => {
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+      callbackUrl: "/dashboard",
+    })
+
+    if (result?.error) {
+      return { ok: false, error: result.error === "CredentialsSignin" ? "Credenciales invalidas" : result.error }
     }
-    return false
-  }, [])
+    return { ok: true }
+  }
 
-  const logout = useCallback(() => {
-    setUser(null)
-  }, [])
-
-  // Para demo: permite cambiar de rol fácilmente
-  const switchRole = useCallback((role: UserRole) => {
-    const userOfRole = mockUsuarios.find(u => u.rol === role && u.activo)
-    if (userOfRole) {
-      setUser(userOfRole)
-    }
-  }, [])
+  const value: AuthContextType = {
+    user,
+    isAuthenticated: status === "authenticated" && !!user,
+    isLoading: status === "loading",
+    isOffice365Enabled,
+    login: () => signIn("azure-ad", { callbackUrl: "/dashboard" }),
+    loginWithCredentials,
+    logout: () => signOut({ callbackUrl: "/login" }),
+  }
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        login,
-        logout,
-        switchRole
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
+  )
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return (
+    <SessionProvider>
+      <AuthProviderInner>{children}</AuthProviderInner>
+    </SessionProvider>
   )
 }
 

@@ -21,20 +21,19 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, isAuthenticated, switchRole } = useAuth()
+  const { user, isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    // Para demo: auto-login como gestor si no hay usuario
-    if (!isAuthenticated) {
-      switchRole("GESTOR")
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login")
     }
-  }, [isAuthenticated, switchRole])
+  }, [isAuthenticated, isLoading, router])
 
-  if (!isAuthenticated) {
+  if (isLoading || !isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Cargando...</div>
+        <div className="animate-pulse text-muted-foreground">Cargando sesion...</div>
       </div>
     )
   }
@@ -50,9 +49,10 @@ export default function DashboardLayout({
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
-                  <BreadcrumbPage className="text-sm font-medium">
-                    Sistema de Gestión de Cobro Coactivo
-                  </BreadcrumbPage>
+                <BreadcrumbPage className="text-sm font-medium truncate">
+                  <span className="hidden md:inline">Sistema de Gestión de Cobro Coactivo</span>
+                  <span className="md:hidden">Cobro Coactivo</span>
+                </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>

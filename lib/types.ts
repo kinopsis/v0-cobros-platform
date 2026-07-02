@@ -2,36 +2,43 @@
 
 export type UserRole = "JUZGADO" | "GESTOR" | "ABOGADO" | "ADMIN"
 
-export type ClaseProceso = 
-  | "DESACATO" 
-  | "COSTAS" 
-  | "REINTEGRO" 
-  | "NO_PENAL" 
-  | "DESACATO_FIDUPREVISORA"
+export type Naturaleza =
+  | "ARANCEL"
+  | "INCAPACIDADES"
+  | "MULTA_CAMARA_COMERCIO"
+  | "MULTA_CAUCIONES"
+  | "MULTA_COMISARIAS_FAMILIA"
+  | "MULTA_CONVERSION_DEPOSITO_JUDICIAL"
+  | "MULTA_CORRECCIONAL"
+  | "MULTA_INCIDENTE_DESACATO"
+  | "MULTA_INCUMPLIMIENTO_CONTRACTUAL"
+  | "MULTA_INDEMNIZACION_CAUCIONES"
+  | "MULTA_JUECES_PAZ"
+  | "MULTA_JURAMENTO_ESTIMATORIO"
+  | "MULTA_JURISDICCION_ADMINISTRATIVA"
+  | "MULTA_JURISDICCION_CIVIL"
+  | "MULTA_JURISDICCION_FAMILIA"
+  | "MULTA_JURISDICCION_LABORAL"
 
-export type Asunto = 
-  | "PROVIDENCIA" 
-  | "AUTO" 
-  | "SENTENCIA" 
-  | "CERTIFICACION_COBRO"
+export type Concepto =
+  | "MULTAS_ADMINISTRATIVAS"
+  | "ARANCEL"
+  | "MULTAS"
+  | "REINTEGRO"
+  | "INCAPACIDAD"
+  | "POLIZA"
 
 export type TipoDocumento = "CC" | "NIT" | "OTRO"
 
 export type TipoPersona = "NATURAL" | "JURIDICA"
 
 export type EstadoSolicitud = 
-  | "RECIBIDA"
   | "EN_VALIDACION"
-  | "DEVUELTA"
-  | "DEVUELTA_AL_JUZGADO"
   | "RADICADA_EN_SIGOBIUS"
   | "ASIGNADA_A_ABOGADO"
-  | "EN_PROCESO"
-  | "MANDAMIENTO_DE_PAGO"
-  | "MEDIDAS_CAUTELARES"
-  | "RADICADO_SISTEMA_JUSTICIA"
-  | "CERRADA"
-  | "TERMINADA_SIN_PAGO"
+  | "DEVUELTA_POR_GESTOR"
+  | "DEVUELTA_POR_ABOGADO"
+  | "RADICADA_EN_GCC"
 
 export type Disponibilidad = "DISPONIBLE" | "MEDIA" | "NO_DISPONIBLE"
 
@@ -43,6 +50,10 @@ export interface Sancionado {
   tipoDocumento: TipoDocumento
   numeroDocumento: string
   tipoPersona: TipoPersona
+  direccion?: string
+  ciudad?: string
+  tipoSancion?: string
+  cantidadSancion?: string
 }
 
 export interface DocumentoAdjunto {
@@ -66,7 +77,7 @@ export interface Usuario {
   telefono?: string
   ciudad?: string
   // Campos específicos para Abogado
-  especialidades?: ClaseProceso[]
+  especialidades?: Naturaleza[]
   capacidadMaxima?: number
   disponibilidad?: Disponibilidad
   casosActivos?: number
@@ -84,8 +95,8 @@ export interface Solicitud {
   ciudadDespacho: string
   // Datos del proceso
   radicadoOrigen: string // 23 dígitos
-  claseProceso: ClaseProceso
-  asunto: Asunto
+  naturaleza: Naturaleza
+  concepto: Concepto
   juzgadoConocimiento: string
   descripcionProceso: string
   // Personas involucradas
@@ -181,7 +192,7 @@ export interface ProductividadAbogado {
 }
 
 export interface DistribucionProcesos {
-  claseProceso: ClaseProceso
+  naturaleza: Naturaleza
   cantidad: number
   porcentaje: number
   activos: number
@@ -189,49 +200,56 @@ export interface DistribucionProcesos {
 }
 
 // Labels para UI
-export const CLASE_PROCESO_LABELS: Record<ClaseProceso, string> = {
-  DESACATO: "Desacato",
-  COSTAS: "Costas",
-  REINTEGRO: "Reintegro",
-  NO_PENAL: "No Penal",
-  DESACATO_FIDUPREVISORA: "Desacato Fiduprevisora"
+export const NATURALEZA_LABELS: Record<Naturaleza, string> = {
+  ARANCEL: "ARANCEL - ARANCEL",
+  INCAPACIDADES: "INCAPACIDAD - INCAPACIDADES",
+  MULTA_CAMARA_COMERCIO: "MULTA - CÁMARA DE COMERCIO",
+  MULTA_CAUCIONES: "MULTA - CAUCIONES",
+  MULTA_COMISARIAS_FAMILIA: "MULTA - COMISARIAS DE FAMILIA",
+  MULTA_CONVERSION_DEPOSITO_JUDICIAL: "MULTA - CONVERSIÓN DEPÓSITO JUDICIAL CONSIG. CUENTA DESP",
+  MULTA_CORRECCIONAL: "MULTA - CORRECCIONAL - TODAS LAS JURISDICCIONES",
+  MULTA_INCIDENTE_DESACATO: "MULTA - INCIDENTE DE DESACATO",
+  MULTA_INCUMPLIMIENTO_CONTRACTUAL: "MULTA - INCUMPLIMIENTO CONTRACTUAL",
+  MULTA_INDEMNIZACION_CAUCIONES: "MULTA - INDEMNIZACIÓN POR CAUCIONES",
+  MULTA_JUECES_PAZ: "MULTA - JUECES DE PAZ",
+  MULTA_JURAMENTO_ESTIMATORIO: "MULTA - JURAMENTO ESTIMATORIO",
+  MULTA_JURISDICCION_ADMINISTRATIVA: "MULTA - JURISDICCIÓN ADMINISTRATIVA",
+  MULTA_JURISDICCION_CIVIL: "MULTA - JURISDICCIÓN CIVIL",
+  MULTA_JURISDICCION_FAMILIA: "MULTA - JURISDICCIÓN FAMILIA",
+  MULTA_JURISDICCION_LABORAL: "MULTA - JURISDICCIÓN LABORAL",
 }
 
-export const ASUNTO_LABELS: Record<Asunto, string> = {
-  PROVIDENCIA: "Providencia",
-  AUTO: "Auto",
-  SENTENCIA: "Sentencia",
-  CERTIFICACION_COBRO: "Certificación de Cobro"
+export const CONCEPTO_LABELS: Record<Concepto, string> = {
+  MULTAS_ADMINISTRATIVAS: "Multas administrativas (Urbanísticas, ambientales, disciplinarias, de tránsito, correccionales)",
+  ARANCEL: "ARANCEL (Obligaciones tributarias: Impuestos, tasas, contribuciones, intereses y sanciones tributarias)",
+  MULTAS: "MULTAS (Incumplimientos contractuales: Cláusulas penales pecuniarias, multas por incumplimiento de contratos estatales)",
+  REINTEGRO: "REINTEGRO (Pagos indebidos, Subsidios, incapacidades, licencias, prestaciones recibidas sin derecho)",
+  INCAPACIDAD: "INCAPACIDAD",
+  POLIZA: "PÓLIZA",
 }
+
+// Alias de compatibilidad (deprecados)
+export type ClaseProceso = Naturaleza
+export type Asunto = Concepto
+export const CLASE_PROCESO_LABELS = NATURALEZA_LABELS
+export const ASUNTO_LABELS = CONCEPTO_LABELS
 
 export const ESTADO_LABELS: Record<EstadoSolicitud, string> = {
-  RECIBIDA: "Recibida",
   EN_VALIDACION: "En Validación",
-  DEVUELTA: "Devuelta por Gestor",
-  DEVUELTA_AL_JUZGADO: "Devuelta al Juzgado",
   RADICADA_EN_SIGOBIUS: "Radicada en SIGOBIUS",
   ASIGNADA_A_ABOGADO: "Asignada a Abogado",
-  EN_PROCESO: "En Proceso",
-  MANDAMIENTO_DE_PAGO: "Mandamiento de Pago",
-  MEDIDAS_CAUTELARES: "Medidas Cautelares",
-  RADICADO_SISTEMA_JUSTICIA: "Radicado Sistema Justicia",
-  CERRADA: "Cerrada",
-  TERMINADA_SIN_PAGO: "Terminada sin Pago"
+  DEVUELTA_POR_GESTOR: "Devuelta por Gestor",
+  DEVUELTA_POR_ABOGADO: "Devuelta por Abogado",
+  RADICADA_EN_GCC: "Radicada en GCC",
 }
 
 export const ESTADO_COLORS: Record<EstadoSolicitud, string> = {
-  RECIBIDA: "bg-blue-100 text-blue-800",
   EN_VALIDACION: "bg-yellow-100 text-yellow-800",
-  DEVUELTA: "bg-red-100 text-red-800",
-  DEVUELTA_AL_JUZGADO: "bg-rose-100 text-rose-800",
   RADICADA_EN_SIGOBIUS: "bg-emerald-100 text-emerald-800",
   ASIGNADA_A_ABOGADO: "bg-indigo-100 text-indigo-800",
-  EN_PROCESO: "bg-cyan-100 text-cyan-800",
-  MANDAMIENTO_DE_PAGO: "bg-orange-100 text-orange-800",
-  MEDIDAS_CAUTELARES: "bg-amber-100 text-amber-800",
-  RADICADO_SISTEMA_JUSTICIA: "bg-teal-100 text-teal-800",
-  CERRADA: "bg-green-100 text-green-800",
-  TERMINADA_SIN_PAGO: "bg-gray-100 text-gray-800"
+  DEVUELTA_POR_GESTOR: "bg-red-100 text-red-800",
+  DEVUELTA_POR_ABOGADO: "bg-orange-100 text-orange-800",
+  RADICADA_EN_GCC: "bg-green-100 text-green-800",
 }
 
 export const TIPO_DOCUMENTO_LABELS: Record<TipoDocumento, string> = {

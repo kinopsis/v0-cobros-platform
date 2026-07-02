@@ -27,19 +27,21 @@ export default function ConfiguracionPage() {
   }
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6 lg:p-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Configuración del Sistema</h1>
         <p className="text-muted-foreground mt-2">Administra los parámetros y configuraciones generales de la plataforma</p>
       </div>
 
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <div className="overflow-x-auto -mx-1 px-1 pb-1">
+        <TabsList className="grid w-full grid-cols-4 min-w-[320px]">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>
           <TabsTrigger value="seguridad">Seguridad</TabsTrigger>
           <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
         </TabsList>
+        </div>
 
         {/* Tab General */}
         <TabsContent value="general" className="space-y-4">
