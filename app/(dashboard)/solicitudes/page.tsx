@@ -231,7 +231,7 @@ export default function SolicitudesPage() {
       {/* Contadores rápidos + Tabs (solo GESTOR) */}
       {isGestor && (
         <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {ESTADO_TABS.filter(t => t.id !== "todas").map((tab) => (
               <Card 
                 key={tab.id} 
@@ -245,13 +245,13 @@ export default function SolicitudesPage() {
                   <tab.icon className={`h-4 w-4 ${activeTab === tab.id ? 'text-primary' : 'text-muted-foreground'}`} />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{getTabCount(tab.id)}</div>
+                  <div className="text-lg sm:text-2xl font-bold break-words">{getTabCount(tab.id)}</div>
                 </CardContent>
               </Card>
             ))}
           </div>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <div className="overflow-x-auto -mx-1 px-1 pb-1">
+            <div className="-mx-1 px-1 pb-1">
             <TabsList className="grid w-full grid-cols-5 min-w-[400px]">
               {ESTADO_TABS.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">

@@ -76,7 +76,7 @@ export default function AlertasPage() {
             <CardTitle className="text-sm font-medium">Total Alertas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockAlerts.length}</div>
+            <div className="text-lg sm:text-2xl font-bold break-words">{mockAlerts.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {mockAlerts.filter(a => !a.leido).length} sin leer
             </p>

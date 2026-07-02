@@ -492,7 +492,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
               Información del juzgado o tribunal que remite la solicitud
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Código del Despacho</Label>
               <Input value={user?.codigoDespacho || ""} disabled className="bg-muted" />
@@ -613,7 +613,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
           </div>
 
           {/* Fila 2: Concepto + Naturaleza (cascada) */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="concepto">
                 Concepto <span className="text-destructive">*</span>
@@ -671,7 +671,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
               Fechas del Proceso
             </h4>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Providencia <span className="text-destructive">*</span></Label>
                 <Popover>
@@ -781,7 +781,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                 </div>
 
                 {/* Fila 2: Tipo Documento + Número Documento */}
-                <div className="grid gap-4 grid-cols-[30%_70%]">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[30%_70%]">
                   <div className="space-y-2">
                     <Label>Tipo de Documento</Label>
                     <Select
@@ -836,7 +836,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                 {/* Fila 4: Valor Sanción */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-muted-foreground">Valor Sanción</Label>
-                  <div className="grid gap-4 grid-cols-[30%_70%]">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-[30%_70%]">
                     <div className="space-y-2">
                       <Label htmlFor={`tipoSancion_${index}`}>Tipo de Sanción</Label>
                       <Select
@@ -874,7 +874,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                 </div>
 
                 {/* Fila 5: Ciudad + Dirección */}
-                <div className="grid gap-4 grid-cols-[30%_70%]">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[30%_70%]">
                   <div className="space-y-2">
                     <Label>Ciudad</Label>
                     <ComboboxBuscable

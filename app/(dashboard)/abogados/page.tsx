@@ -57,7 +57,7 @@ export default function AbogadosPage() {
             <Users className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-900">{abogados.length}</div>
+            <div className="text-lg sm:text-2xl font-bold text-blue-900 break-words">{abogados.length}</div>
             <p className="text-xs text-blue-600/70">Activos en el sistema</p>
           </CardContent>
         </Card>
@@ -69,7 +69,7 @@ export default function AbogadosPage() {
             <Briefcase className="h-4 w-4 text-indigo-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-indigo-900">{totalCasos}</div>
+            <div className="text-lg sm:text-2xl font-bold text-indigo-900 break-words">{totalCasos}</div>
             <p className="text-xs text-indigo-600/70">Total en gestión</p>
           </CardContent>
         </Card>
@@ -81,7 +81,7 @@ export default function AbogadosPage() {
             <UserCheck className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-900">{totalSancionados}</div>
+            <div className="text-lg sm:text-2xl font-bold text-amber-900 break-words">{totalSancionados}</div>
             <p className="text-xs text-amber-600/70">Personas en procesos</p>
           </CardContent>
         </Card>
@@ -93,7 +93,7 @@ export default function AbogadosPage() {
             <DollarSign className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-900">{formatMonto(totalMonto)}</div>
+            <div className="text-lg sm:text-2xl font-bold text-green-900 break-words">{formatMonto(totalMonto)}</div>
             <p className="text-xs text-green-600/70">Pendiente de cobro</p>
           </CardContent>
         </Card>
@@ -145,15 +145,15 @@ export default function AbogadosPage() {
                 {/* 3 Indicadores principales */}
                 <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
                   <div className="bg-blue-50 rounded-lg py-2 sm:py-3 px-1 min-w-0">
-                    <p className="text-xl sm:text-2xl font-bold text-primary truncate">{abogado.casos_asignados || 0}</p>
+                    <p className="text-base sm:text-xl font-bold text-primary break-words">{abogado.casos_asignados || 0}</p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Asignados</p>
                   </div>
                   <div className="bg-amber-50 rounded-lg py-2 sm:py-3 px-1 min-w-0">
-                    <p className="text-xl sm:text-2xl font-bold text-amber-600 truncate">{abogado.total_sancionados || 0}</p>
+                    <p className="text-base sm:text-xl font-bold text-amber-600 break-words">{abogado.total_sancionados || 0}</p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Sancionados</p>
                   </div>
                   <div className="bg-green-50 rounded-lg py-2 sm:py-3 px-1 min-w-0">
-                    <p className="text-lg sm:text-2xl font-bold text-green-600 truncate">{formatMonto(abogado.monto_recaudar || 0)}</p>
+                    <p className="text-sm sm:text-lg font-bold text-green-600 break-words">{formatMonto(abogado.monto_recaudar || 0)}</p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Recaudar</p>
                   </div>
                 </div>

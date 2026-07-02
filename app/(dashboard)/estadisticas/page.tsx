@@ -94,7 +94,7 @@ export default function EstadisticasPage() {
       </div>
 
       {/* KPIs Principales */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {kpis.map((kpiItem, index) => {
           const Icon = kpiItem.icon
           return (
@@ -108,7 +108,7 @@ export default function EstadisticasPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{kpiItem.value}</div>
+                <div className="text-lg sm:text-2xl font-bold break-words">{kpiItem.value}</div>
               </CardContent>
             </Card>
           )

@@ -142,7 +142,7 @@ export function DashboardAdmin() {
       </div>
 
       {/* 3 KPIs Principales */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
         {kpisPrincipales.map((stat) => (
           <Card key={stat.title} className={stat.bg}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -152,7 +152,7 @@ export function DashboardAdmin() {
               <stat.icon className={`h-5 w-5 ${stat.color}`} />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold">{stat.value}</span>
+              <span className="text-lg sm:text-2xl md:text-3xl font-bold break-words">{stat.value}</span>
               <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
             </CardContent>
           </Card>
@@ -160,7 +160,7 @@ export function DashboardAdmin() {
       </div>
 
       {/* KPIs Secundarios */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpisSecundarios.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -170,14 +170,14 @@ export function DashboardAdmin() {
               <stat.icon className={`h-4 w-4 ${stat.color}`} />
             </CardHeader>
             <CardContent>
-              <span className="text-2xl font-bold">{stat.value}</span>
+              <span className="text-base sm:text-xl lg:text-2xl font-bold break-words">{stat.value}</span>
               <p className="text-xs text-muted-foreground">{stat.description}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Top Juzgados por Monto */}
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -199,7 +199,7 @@ export function DashboardAdmin() {
                 topJuzgados.map((j: any) => (
                   <div key={j.juzgado} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium truncate max-w-[220px]">{j.juzgado}</span>
+                      <span className="font-medium truncate max-w-[150px] sm:max-w-[220px]">{j.juzgado}</span>
                       <span className="font-bold text-green-700">{formatMonto(j.monto_pendiente)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -262,13 +262,13 @@ export function DashboardAdmin() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {(data?.distribucionNaturaleza || []).slice(0, 6).map((c: any) => {
               const pct = kpi.totalRadicaciones > 0 ? Math.round((c.total / kpi.totalRadicaciones) * 100) : 0
               return (
                 <div key={c.asunto} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium truncate max-w-[250px]">{c.asunto.replace(/_/g, " ")}</span>
+                    <span className="font-medium truncate max-w-[150px] sm:max-w-[200px] md:max-w-[250px]">{c.asunto.replace(/_/g, " ")}</span>
                     <span className="text-xs">{c.total} ({pct}%)</span>
                   </div>
                   <Progress value={pct} className="h-1.5" />

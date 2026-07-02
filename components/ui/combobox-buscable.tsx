@@ -61,7 +61,7 @@ export function ComboboxBuscable({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0"
+        className="p-0 max-h-[60vh]"
         style={{ width: "var(--radix-popover-trigger-width)" }}
       >
         <Command>

@@ -107,7 +107,7 @@ export function Office365StatusCard() {
         <CardDescription>Estado de la integracion con Azure AD</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <p className="text-sm text-muted-foreground">Tenant ID</p>
             <p className="font-mono text-sm">{status?.tenantId || "No configurado"}</p>

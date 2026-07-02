@@ -102,8 +102,7 @@ export default function CasosProcesoPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Número de Caso</TableHead>
@@ -150,7 +149,6 @@ export default function CasosProcesoPage() {
                 ))}
               </TableBody>
             </Table>
-          </div>
         </CardContent>
       </Card>
 

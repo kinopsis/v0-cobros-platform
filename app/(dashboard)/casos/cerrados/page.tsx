@@ -56,7 +56,7 @@ export default function CasosCerradosPage() {
             <CardTitle className="text-sm font-medium">Casos Cerrados</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{casosCerrados.length}</div>
+            <div className="text-lg sm:text-2xl font-bold break-words">{casosCerrados.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {casosCobrados} cobrados exitosamente
             </p>
@@ -68,7 +68,7 @@ export default function CasosCerradosPage() {
             <CardTitle className="text-sm font-medium">Recaudación Total</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-lg sm:text-2xl font-bold break-words">
               ${totalRecaudado.toLocaleString('es-CO')}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -82,7 +82,7 @@ export default function CasosCerradosPage() {
             <CardTitle className="text-sm font-medium">Tasa de Éxito</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-lg sm:text-2xl font-bold break-words">
               {Math.round((casosCobrados / casosCerrados.length) * 100)}%
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -112,8 +112,7 @@ export default function CasosCerradosPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Número de Caso</TableHead>
@@ -154,7 +153,6 @@ export default function CasosCerradosPage() {
                 ))}
               </TableBody>
             </Table>
-          </div>
         </CardContent>
       </Card>
 
