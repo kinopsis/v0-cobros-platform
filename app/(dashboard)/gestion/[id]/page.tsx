@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,7 +26,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-import { mockSolicitudes, mockUsuarios } from "@/lib/mock-data"
 import { 
   ESTADO_LABELS, 
   ESTADO_COLORS, 
@@ -37,7 +36,8 @@ import {
   PRIORIDAD_LABELS,
   PRIORIDAD_COLORS,
   DISPONIBILIDAD_COLORS,
-  DISPONIBILIDAD_LABELS
+  DISPONIBILIDAD_LABELS,
+  EstadoSolicitud
 } from "@/lib/types"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -53,7 +53,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Calendar,
   Phone,
   Mail,
   MapPin,
@@ -63,9 +62,98 @@ import {
   Sparkles
 } from "lucide-react"
 
+// Tipo para la solicitud mapeada desde la API
+interface SolicitudData {
+  id: string
+  fechaSolicitud: Date
+  nombreJuzgado: string
+  funcionarioRemitente: string
+  correoInstitucional: string
+  telefonoDespacho: string
+  ciudadDespacho: string
+  radicadoOrigen: string
+  claseProceso: string
+  asunto: string
+  juzgadoConocimiento: string
+  descripcionProceso: string | null
+  sancionados: Array<{ id: number; nombreCompleto: string; tipoDocumento: string; numeroDocumento: string; tipoPersona: string }>
+  documentosAdjuntos: Array<{ id: number; nombre: string; tipo: string; url: string; fechaCarga: Date; esObligatorio: boolean }>
+  estado: EstadoSolicitud
+  radicadoSIGOBIUS: string | null
+  abogadoAsignadoId: string | null
+  abogadoAsignado: { id: string; nombre: string; email: string } | null
+  fechaRadicacion: Date | null
+  fechaAsignacion: Date | null
+  prioridad: string
+  diasSLA: number
+  motivoDevolucion: string | null
+}
+
+// Tipo para abogados desde la API
+interface AbogadoData {
+  id: string
+  nombre: string
+  email: string
+  especialidades: string[]
+  capacidadMaxima: number
+  disponibilidad: string
+  casosActivos: number
+  casosAsignados: number
+  cargaPorcentaje: number
+}
+
+function mapSolicitudFromAPI(apiData: any): SolicitudData {
+  return {
+    id: apiData.id,
+    fechaSolicitud: new Date(apiData.fecha_solicitud),
+    nombreJuzgado: apiData.nombre_juzgado || "",
+    funcionarioRemitente: apiData.funcionario_remitente || "",
+    correoInstitucional: apiData.correo_institucional || "",
+    telefonoDespacho: apiData.telefono_despacho || "",
+    ciudadDespacho: apiData.ciudad_despacho || "",
+    radicadoOrigen: apiData.radicado_origen || "",
+    claseProceso: apiData.clase_proceso || "",
+    asunto: apiData.asunto || "",
+    juzgadoConocimiento: apiData.juzgado_conocimiento || "",
+    descripcionProceso: apiData.descripcion_proceso || null,
+    sancionados: (apiData.sancionados || []).map((s: any) => ({
+      id: s.id,
+      nombreCompleto: s.nombre_completo,
+      tipoDocumento: s.tipo_documento,
+      numeroDocumento: s.numero_documento,
+      tipoPersona: s.tipo_persona,
+    })),
+    documentosAdjuntos: (apiData.documentos_adjuntos || []).map((d: any) => ({
+      id: d.id,
+      nombre: d.nombre,
+      tipo: d.tipo,
+      url: d.url,
+      fechaCarga: new Date(d.fecha_carga),
+      esObligatorio: d.es_obligatorio,
+    })),
+    estado: apiData.estado as EstadoSolicitud,
+    radicadoSIGOBIUS: apiData.radicado_sigobius || null,
+    abogadoAsignadoId: apiData.abogado_asignado_id || null,
+    abogadoAsignado: apiData.abogado || null,
+    fechaRadicacion: apiData.fecha_radicacion ? new Date(apiData.fecha_radicacion) : null,
+    fechaAsignacion: apiData.fecha_asignacion ? new Date(apiData.fecha_asignacion) : null,
+    prioridad: apiData.prioridad || "MEDIA",
+    diasSLA: apiData.dias_sla || 0,
+    motivoDevolucion: apiData.motivo_devolucion || null,
+  }
+}
+
 export default function GestionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
+  
+  // Estados de datos
+  const [solicitud, setSolicitud] = useState<SolicitudData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [abogados, setAbogados] = useState<AbogadoData[]>([])
+  
+  // Estados de UI
   const [isApproving, setIsApproving] = useState(false)
   const [isAssigning, setIsAssigning] = useState(false)
   const [showRadicacionDialog, setShowRadicacionDialog] = useState(false)
@@ -77,10 +165,73 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
   const [radicadoError, setRadicadoError] = useState("")
   const [viewingDoc, setViewingDoc] = useState<{ nombre: string; url: string; tipo?: string } | null>(null)
 
-  const solicitud = mockSolicitudes.find(s => s.id === id)
-  const abogados = mockUsuarios.filter(u => u.rol === "ABOGADO" && u.activo)
-  
-  if (!solicitud) {
+  // Cargar solicitud desde API
+  const fetchSolicitud = useCallback(async () => {
+    try {
+      setError(null)
+      const res = await fetch(`/api/solicitudes/${id}`)
+      if (!res.ok) {
+        if (res.status === 404) {
+          setError("not_found")
+        } else if (res.status === 403) {
+          setError("forbidden")
+        } else {
+          const json = await res.json()
+          setError(json.error || "Error al cargar la solicitud")
+        }
+        return
+      }
+      const json = await res.json()
+      setSolicitud(mapSolicitudFromAPI(json.data))
+    } catch (err) {
+      console.error("Error fetching solicitud:", err)
+      setError("Error de conexión al cargar la solicitud")
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
+  // Cargar abogados desde API
+  const fetchAbogados = useCallback(async () => {
+    try {
+      const res = await fetch("/api/abogados")
+      if (res.ok) {
+        const json = await res.json()
+        const mapped: AbogadoData[] = (json.data || []).map((a: any) => ({
+          id: a.id,
+          nombre: a.nombre,
+          email: a.email,
+          especialidades: a.especialidades || [],
+          capacidadMaxima: a.capacidad_maxima || 20,
+          disponibilidad: a.disponibilidad || "DISPONIBLE",
+          casosActivos: a.casos_activos || 0,
+          casosAsignados: a.casos_asignados || 0,
+          cargaPorcentaje: a.carga_porcentaje || 0,
+        }))
+        setAbogados(mapped)
+      }
+    } catch (err) {
+      console.error("Error fetching abogados:", err)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchSolicitud()
+    fetchAbogados()
+  }, [fetchSolicitud, fetchAbogados])
+
+  // Estado de carga
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-12 w-12 animate-spin text-muted-foreground mb-4" />
+        <p className="text-muted-foreground">Cargando solicitud...</p>
+      </div>
+    )
+  }
+
+  // Estado de error: no encontrada
+  if (error === "not_found" || (!loading && !solicitud)) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
@@ -98,9 +249,48 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
+  // Estado de error: acceso denegado
+  if (error === "forbidden") {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold">Acceso denegado</h2>
+        <p className="text-muted-foreground mb-4">
+          No tienes permisos para ver esta solicitud.
+        </p>
+        <Button asChild>
+          <Link href="/gestion">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver a gestión
+          </Link>
+        </Button>
+      </div>
+    )
+  }
+
+  // Error genérico
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold">Error</h2>
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Button asChild>
+          <Link href="/gestion">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver a gestión
+          </Link>
+        </Button>
+      </div>
+    )
+  }
+
+  // Si llegamos aquí, solicitud está garantizada
+  const s = solicitud!
+
   // Sugerencia de abogado basada en especialidad y carga
   const abogadoSugerido = abogados
-    .filter(a => a.especialidades?.includes(solicitud.claseProceso))
+    .filter(a => a.especialidades?.includes(s.claseProceso))
     .sort((a, b) => (a.casosActivos || 0) - (b.casosActivos || 0))[0]
 
   const handleAprobar = () => {
@@ -115,16 +305,37 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
       return
     }
     setIsApproving(true)
-    await new Promise(resolve => setTimeout(resolve, 1200))
-    toast.success(
-      <div className="flex flex-col gap-1">
-        <span className="font-medium">Solicitud aprobada y radicada</span>
-        <span className="text-sm">Radicado SIGOBIUS: {radicadoSIGOBIUS.trim()}</span>
-      </div>
-    )
-    setIsApproving(false)
-    setShowRadicacionDialog(false)
-    setShowAsignacionDialog(true)
+    try {
+      const res = await fetch(`/api/solicitudes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estado: "RADICADA_EN_SIGOBIUS",
+          radicado_sigobius: radicadoSIGOBIUS.trim(),
+        }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        toast.error(json.error || "Error al radicar la solicitud")
+        setIsApproving(false)
+        return
+      }
+      toast.success(
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">Solicitud aprobada y radicada</span>
+          <span className="text-sm">Radicado SIGOBIUS: {radicadoSIGOBIUS.trim()}</span>
+        </div>
+      )
+      setIsApproving(false)
+      setShowRadicacionDialog(false)
+      // Recargar datos
+      await fetchSolicitud()
+      // Mostrar diálogo de asignación
+      setShowAsignacionDialog(true)
+    } catch (err) {
+      toast.error("Error de conexión al radicar")
+      setIsApproving(false)
+    }
   }
 
   const handleDevolver = async () => {
@@ -132,10 +343,26 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
       toast.error("Debe indicar el motivo de devolución")
       return
     }
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    toast.success("Solicitud devuelta al juzgado")
-    setShowDevolucionDialog(false)
-    router.push("/gestion")
+    try {
+      const res = await fetch(`/api/solicitudes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estado: "DEVUELTA_POR_GESTOR",
+          motivo_devolucion: motivoDevolucion.trim(),
+        }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        toast.error(json.error || "Error al devolver la solicitud")
+        return
+      }
+      toast.success("Solicitud devuelta al juzgado")
+      setShowDevolucionDialog(false)
+      router.push("/gestion")
+    } catch (err) {
+      toast.error("Error de conexión al devolver")
+    }
   }
 
   const handleAsignar = async () => {
@@ -144,21 +371,39 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
       return
     }
     setIsAssigning(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    const abogado = abogados.find(a => a.id === abogadoSeleccionado)
-    toast.success(
-      <div className="flex flex-col gap-1">
-        <span className="font-medium">Caso asignado exitosamente</span>
-        <span className="text-sm">Abogado: {abogado?.nombre}</span>
-      </div>
-    )
-    setIsAssigning(false)
-    setShowAsignacionDialog(false)
-    router.push("/gestion")
+    try {
+      const res = await fetch(`/api/solicitudes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estado: "ASIGNADA_A_ABOGADO",
+          abogado_asignado_id: abogadoSeleccionado,
+        }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        toast.error(json.error || "Error al asignar el abogado")
+        setIsAssigning(false)
+        return
+      }
+      const abogado = abogados.find(a => a.id === abogadoSeleccionado)
+      toast.success(
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">Caso asignado exitosamente</span>
+          <span className="text-sm">Abogado: {abogado?.nombre}</span>
+        </div>
+      )
+      setIsAssigning(false)
+      setShowAsignacionDialog(false)
+      router.push("/gestion")
+    } catch (err) {
+      toast.error("Error de conexión al asignar")
+      setIsAssigning(false)
+    }
   }
 
-  const canValidate = solicitud.estado === "EN_VALIDACION"
-  const canAssign = solicitud.estado === "RADICADA_EN_SIGOBIUS"
+  const canValidate = s.estado === "EN_VALIDACION"
+  const canAssign = s.estado === "RADICADA_EN_SIGOBIUS"
 
   return (
     <div className="space-y-6">
@@ -173,17 +418,17 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold tracking-tight">
-                {solicitud.id}
+                {s.id}
               </h1>
-              <Badge className={ESTADO_COLORS[solicitud.estado]}>
-                {ESTADO_LABELS[solicitud.estado]}
+              <Badge className={ESTADO_COLORS[s.estado]}>
+                {ESTADO_LABELS[s.estado]}
               </Badge>
-              <Badge variant="outline" className={PRIORIDAD_COLORS[solicitud.prioridad]}>
-                {PRIORIDAD_LABELS[solicitud.prioridad]}
+              <Badge variant="outline" className={PRIORIDAD_COLORS[s.prioridad]}>
+                {PRIORIDAD_LABELS[s.prioridad]}
               </Badge>
             </div>
             <p className="text-muted-foreground mt-1">
-              {CLASE_PROCESO_LABELS[solicitud.claseProceso]} - {ASUNTO_LABELS[solicitud.asunto]}
+              {CLASE_PROCESO_LABELS[s.claseProceso as keyof typeof CLASE_PROCESO_LABELS] || s.claseProceso} - {ASUNTO_LABELS[s.asunto as keyof typeof ASUNTO_LABELS] || s.asunto}
             </p>
           </div>
         </div>
@@ -232,28 +477,28 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <p className="text-sm text-muted-foreground">Radicado de Origen</p>
-                  <p className="font-mono font-medium">{solicitud.radicadoOrigen}</p>
+                  <p className="font-mono font-medium">{s.radicadoOrigen}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Radicado SIGOBIUS</p>
                   <p className="font-mono font-medium">
-                    {solicitud.radicadoSIGOBIUS || <span className="text-muted-foreground">Pendiente</span>}
+                    {s.radicadoSIGOBIUS || <span className="text-muted-foreground">Pendiente</span>}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Clase de Proceso</p>
-                  <Badge variant="outline">{CLASE_PROCESO_LABELS[solicitud.claseProceso]}</Badge>
+                  <Badge variant="outline">{CLASE_PROCESO_LABELS[s.claseProceso as keyof typeof CLASE_PROCESO_LABELS] || s.claseProceso}</Badge>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Asunto</p>
-                  <p className="font-medium">{ASUNTO_LABELS[solicitud.asunto]}</p>
+                  <p className="font-medium">{ASUNTO_LABELS[s.asunto as keyof typeof ASUNTO_LABELS] || s.asunto}</p>
                 </div>
               </div>
-              {solicitud.descripcionProceso && (
+              {s.descripcionProceso && (
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Descripción</p>
                   <p className="text-sm bg-muted/50 p-3 rounded-md">
-                    {solicitud.descripcionProceso}
+                    {s.descripcionProceso}
                   </p>
                 </div>
               )}
@@ -270,17 +515,17 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {solicitud.sancionados.map((sancionado) => (
+                {s.sancionados.map((sancionado) => (
                   <div key={sancionado.id} className="rounded-lg border p-4">
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="font-medium">{sancionado.nombreCompleto}</p>
                         <p className="text-sm text-muted-foreground">
-                          {TIPO_DOCUMENTO_LABELS[sancionado.tipoDocumento]}: {sancionado.numeroDocumento}
+                          {TIPO_DOCUMENTO_LABELS[sancionado.tipoDocumento as keyof typeof TIPO_DOCUMENTO_LABELS] || sancionado.tipoDocumento}: {sancionado.numeroDocumento}
                         </p>
                       </div>
                       <Badge variant="outline">
-                        {TIPO_PERSONA_LABELS[sancionado.tipoPersona]}
+                        {TIPO_PERSONA_LABELS[sancionado.tipoPersona as keyof typeof TIPO_PERSONA_LABELS] || sancionado.tipoPersona}
                       </Badge>
                     </div>
                   </div>
@@ -302,7 +547,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {solicitud.documentosAdjuntos.map((doc) => (
+                {s.documentosAdjuntos.map((doc) => (
                   <div
                     key={doc.id}
                     className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
@@ -351,24 +596,24 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
             <CardContent className="space-y-3 text-sm">
               <div>
                 <p className="text-muted-foreground">Nombre</p>
-                <p className="font-medium">{solicitud.nombreJuzgado}</p>
+                <p className="font-medium">{s.nombreJuzgado}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Funcionario</p>
-                <p className="font-medium">{solicitud.funcionarioRemitente}</p>
+                <p className="font-medium">{s.funcionarioRemitente}</p>
               </div>
               <Separator />
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs">{solicitud.correoInstitucional}</span>
+                <span className="text-xs">{s.correoInstitucional}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs">{solicitud.telefonoDespacho}</span>
+                <span className="text-xs">{s.telefonoDespacho}</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs">{solicitud.ciudadDespacho}</span>
+                <span className="text-xs">{s.ciudadDespacho}</span>
               </div>
             </CardContent>
           </Card>
@@ -390,7 +635,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
                   <div>
                     <p className="font-medium">{abogadoSugerido.nombre}</p>
                     <p className="text-xs text-muted-foreground">
-                      Especialidad en {CLASE_PROCESO_LABELS[solicitud.claseProceso]}
+                      Especialidad en {CLASE_PROCESO_LABELS[s.claseProceso as keyof typeof CLASE_PROCESO_LABELS] || s.claseProceso}
                     </p>
                   </div>
                 </div>
@@ -400,7 +645,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
                     <span>{abogadoSugerido.casosActivos} / {abogadoSugerido.capacidadMaxima}</span>
                   </div>
                   <Progress 
-                    value={(abogadoSugerido.casosActivos || 0) / (abogadoSugerido.capacidadMaxima || 20) * 100} 
+                    value={abogadoSugerido.cargaPorcentaje} 
                     className="h-2" 
                   />
                 </div>
@@ -419,13 +664,13 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
             <CardContent className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Recepción</span>
-                <span>{format(solicitud.fechaSolicitud, "d MMM yyyy", { locale: es })}</span>
+                <span>{format(s.fechaSolicitud, "d MMM yyyy", { locale: es })}</span>
               </div>
               <Separator />
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">SLA Restante</span>
-                <Badge variant={solicitud.diasSLA <= 3 ? "destructive" : "outline"}>
-                  {solicitud.diasSLA} días
+                <Badge variant={s.diasSLA <= 3 ? "destructive" : "outline"}>
+                  {s.diasSLA} días
                 </Badge>
               </div>
             </CardContent>
@@ -456,9 +701,9 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
           <div className="space-y-4 py-2">
             <div className="rounded-md bg-muted/60 border px-4 py-3 text-sm space-y-1">
               <p className="text-muted-foreground">Solicitud</p>
-              <p className="font-mono font-medium">{solicitud.id}</p>
+              <p className="font-mono font-medium">{s.id}</p>
               <p className="text-muted-foreground mt-2">Radicado de origen</p>
-              <p className="font-mono font-medium">{solicitud.radicadoOrigen}</p>
+              <p className="font-mono font-medium">{s.radicadoOrigen}</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="radicado-sigobius">
@@ -550,7 +795,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
               Asignar Abogado
             </DialogTitle>
             <DialogDescription>
-              Seleccione el abogado que gestionará este caso de {CLASE_PROCESO_LABELS[solicitud.claseProceso]}.
+              Seleccione el abogado que gestionará este caso de {CLASE_PROCESO_LABELS[s.claseProceso as keyof typeof CLASE_PROCESO_LABELS] || s.claseProceso}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -562,8 +807,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
                 </SelectTrigger>
                 <SelectContent>
                   {abogados.map((abogado) => {
-                    const tieneEspecialidad = abogado.especialidades?.includes(solicitud.claseProceso)
-                    const cargaPorcentaje = Math.round((abogado.casosActivos || 0) / (abogado.capacidadMaxima || 20) * 100)
+                    const tieneEspecialidad = abogado.especialidades?.includes(s.claseProceso)
                     return (
                       <SelectItem key={abogado.id} value={abogado.id}>
                         <div className="flex items-center gap-2">
@@ -573,8 +817,8 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
                               Especialista
                             </Badge>
                           )}
-                          <Badge variant="outline" className={`text-xs ${DISPONIBILIDAD_COLORS[abogado.disponibilidad || 'DISPONIBLE']}`}>
-                            {cargaPorcentaje}% carga
+                          <Badge variant="outline" className={`text-xs ${DISPONIBILIDAD_COLORS[abogado.disponibilidad as keyof typeof DISPONIBILIDAD_COLORS] || ''}`}>
+                            {abogado.cargaPorcentaje}% carga
                           </Badge>
                         </div>
                       </SelectItem>
@@ -591,8 +835,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
               </div>
               <div className="divide-y">
                 {abogados.map((abogado) => {
-                  const tieneEspecialidad = abogado.especialidades?.includes(solicitud.claseProceso)
-                  const cargaPorcentaje = Math.round((abogado.casosActivos || 0) / (abogado.capacidadMaxima || 20) * 100)
+                  const tieneEspecialidad = abogado.especialidades?.includes(s.claseProceso)
                   return (
                     <div 
                       key={abogado.id} 
@@ -609,7 +852,7 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
                             {tieneEspecialidad && <Sparkles className="h-3 w-3 text-primary" />}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {abogado.especialidades?.map(e => CLASE_PROCESO_LABELS[e]).join(", ")}
+                            {abogado.especialidades?.map(e => CLASE_PROCESO_LABELS[e as keyof typeof CLASE_PROCESO_LABELS] || e).join(", ")}
                           </p>
                         </div>
                       </div>
@@ -619,10 +862,10 @@ export default function GestionDetailPage({ params }: { params: Promise<{ id: st
                           <p className="text-xs text-muted-foreground">casos</p>
                         </div>
                         <div className="w-16 sm:w-20 shrink-0">
-                          <Progress value={cargaPorcentaje} className="h-2" />
+                          <Progress value={abogado.cargaPorcentaje} className="h-2" />
                         </div>
-                        <Badge className={`${DISPONIBILIDAD_COLORS[abogado.disponibilidad || 'DISPONIBLE']} shrink-0`}>
-                          {DISPONIBILIDAD_LABELS[abogado.disponibilidad || 'DISPONIBLE']}
+                        <Badge className={`${DISPONIBILIDAD_COLORS[abogado.disponibilidad as keyof typeof DISPONIBILIDAD_COLORS] || ''} shrink-0`}>
+                          {DISPONIBILIDAD_LABELS[abogado.disponibilidad as keyof typeof DISPONIBILIDAD_LABELS] || abogado.disponibilidad}
                         </Badge>
                       </div>
                     </div>

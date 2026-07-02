@@ -219,12 +219,26 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
       if (radicadoError) newErrors.radicadoOrigen = radicadoError
     }
 
-    if (!formData.naturaleza) {
-      newErrors.naturaleza = "La naturaleza es requerida"
+    if (!formData.concepto) {
+      newErrors.concepto = "Seleccione el concepto"
     }
 
-    if (!formData.concepto) {
-      newErrors.concepto = "El concepto es requerido"
+    if (!formData.naturaleza) {
+      newErrors.naturaleza = "Seleccione la naturaleza"
+    } else if (formData.concepto) {
+      // Validar que la naturaleza pertenezca al concepto seleccionado
+      const opcionesValidas = NATURALEZA_OPTIONS[formData.concepto] || []
+      if (!opcionesValidas.includes(formData.naturaleza)) {
+        newErrors.naturaleza = `La naturaleza no corresponde al concepto "${CONCEPTO_OPTIONS.find(c => c.value === formData.concepto)?.label || formData.concepto}"`
+      }
+    }
+
+    // Validar fechas obligatorias
+    if (!etapaPreliminar.providencia) {
+      newErrors.providencia = "Seleccione la fecha de providencia"
+    }
+    if (!etapaPreliminar.ejecutoria) {
+      newErrors.ejecutoria = "Seleccione la fecha de ejecutoria"
     }
 
     // Validar sancionados
@@ -477,7 +491,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
               <Select
                 value={formData.naturaleza}
                 onValueChange={(value) => handleInputChange("naturaleza", value)}
-                disabled={Boolean(isViewMode || (formData.concepto && formData.concepto !== "MULTA"))}
+                disabled={isViewMode}
               >
                 <SelectTrigger className={errors.naturaleza ? "border-destructive" : ""}>
                   <SelectValue placeholder={formData.concepto ? "Seleccione..." : "Primero seleccione Concepto"} />
@@ -505,11 +519,14 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
             </h4>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Providencia</Label>
+                <Label>Providencia <span className="text-destructive">*</span></Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button type="button" variant="outline" disabled={isViewMode}
-                      className={cn("w-full justify-start text-left font-normal", !etapaPreliminar.providencia && "text-muted-foreground")}>
+                      className={cn("w-full justify-start text-left font-normal",
+                        !etapaPreliminar.providencia && "text-muted-foreground",
+                        errors.providencia && "border-destructive"
+                      )}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {etapaPreliminar.providencia ? format(etapaPreliminar.providencia, "dd/MM/yyyy", { locale: es }) : "Seleccionar fecha"}
                     </Button>
@@ -519,13 +536,19 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                       onSelect={(date) => handleEtapaChange("providencia", date || null)} locale={es} />
                   </PopoverContent>
                 </Popover>
+                {errors.providencia && (
+                  <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.providencia}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label>Ejecutoria</Label>
+                <Label>Ejecutoria <span className="text-destructive">*</span></Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button type="button" variant="outline" disabled={isViewMode}
-                      className={cn("w-full justify-start text-left font-normal", !etapaPreliminar.ejecutoria && "text-muted-foreground")}>
+                      className={cn("w-full justify-start text-left font-normal",
+                        !etapaPreliminar.ejecutoria && "text-muted-foreground",
+                        errors.ejecutoria && "border-destructive"
+                      )}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {etapaPreliminar.ejecutoria ? format(etapaPreliminar.ejecutoria, "dd/MM/yyyy", { locale: es }) : "Seleccionar fecha"}
                     </Button>
@@ -535,6 +558,9 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                       onSelect={(date) => handleEtapaChange("ejecutoria", date || null)} locale={es} />
                   </PopoverContent>
                 </Popover>
+                {errors.ejecutoria && (
+                  <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.ejecutoria}</p>
+                )}
               </div>
             </div>
           </div>

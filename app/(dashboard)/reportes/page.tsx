@@ -30,16 +30,7 @@ export default function ReportesPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  const kpi = data?.kpi || {}
-  const topJuzgados = (data?.montoPorJuzgado || []).slice(0, 10)
+  // Hooks must always be called in the same order — before any early return
   const distribucionConcepto = useMemo(() => (data?.distribucionConcepto || []).map((c: any) => ({
     name: (c.clase || '').replace(/_/g, ' '),
     value: c.total,
@@ -52,6 +43,17 @@ export default function ReportesPage() {
     Pendientes: r.pendientes,
     "Asignadas a Abogado": r.asignadas_abogado,
   })), [data?.radicacionesPorJuzgado])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  const kpi = data?.kpi || {}
+  const topJuzgados = (data?.montoPorJuzgado || []).slice(0, 10)
 
   return (
     <div className="space-y-6">
