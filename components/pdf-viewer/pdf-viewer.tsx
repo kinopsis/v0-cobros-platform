@@ -17,9 +17,8 @@ import {
   AlertCircle,
 } from "lucide-react"
 
-// Configurar el worker de PDF.js via CDN (version exacta de pdfjs-dist)
-import { version } from "pdfjs-dist"
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.mjs`
+// Configurar el worker de PDF.js (version local coincide con react-pdf 10.4.1)
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
 
 interface PdfViewerProps {
   fileUrl: string
