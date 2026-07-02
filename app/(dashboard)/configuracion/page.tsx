@@ -34,7 +34,7 @@ export default function ConfiguracionPage() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-4">
-        <div className="overflow-x-auto -mx-1 px-1 pb-1">
+        <div className="-mx-1 px-1 pb-1">
         <TabsList className="grid w-full grid-cols-4 min-w-[320px]">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>
@@ -101,7 +101,7 @@ export default function ConfiguracionPage() {
               <CardDescription>Configuración de plazos y valores</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="text-sm font-medium">Plazo Máximo de Gestión (días)</label>
                   <Input type="number" defaultValue="45" className="mt-2" />

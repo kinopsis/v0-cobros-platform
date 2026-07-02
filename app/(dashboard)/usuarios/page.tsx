@@ -272,7 +272,7 @@ export default function UsuariosPage() {
               />
             </div>
             <Select value={rolFilter} onValueChange={(v) => { setRolFilter(v === 'all' ? '' : v); setPage(1) }}>
-              <SelectTrigger className="w-full sm:w-[130px]">
+              <SelectTrigger className="w-full min-w-[110px] sm:w-[130px]">
                 <SelectValue placeholder="Rol" />
               </SelectTrigger>
               <SelectContent>
@@ -284,7 +284,7 @@ export default function UsuariosPage() {
               </SelectContent>
             </Select>
             <Select value={estadoFilter} onValueChange={(v) => { setEstadoFilter(v === 'all' ? '' : v); setPage(1) }}>
-              <SelectTrigger className="w-full sm:w-[130px]">
+              <SelectTrigger className="w-full min-w-[110px] sm:w-[130px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -299,7 +299,7 @@ export default function UsuariosPage() {
               onChange={(v) => { setCiudadFilter(v); setPage(1) }}
               placeholder="Ciudad/Municipio..."
               searchPlaceholder="Buscar ciudad..."
-              className="min-w-[160px]"
+              className="min-w-[140px]"
             />
             <ComboboxBuscable
               options={especialidadOptions}
@@ -307,7 +307,7 @@ export default function UsuariosPage() {
               onChange={(v) => { setEspecialidadAreaFilter(v); setPage(1) }}
               placeholder="Especialidad/Área..."
               searchPlaceholder="Buscar especialidad..."
-              className="min-w-[180px]"
+              className="min-w-[140px]"
             />
           </div>
           {/* Fila 2: Botones de accion */}
@@ -356,7 +356,6 @@ export default function UsuariosPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -438,7 +437,6 @@ export default function UsuariosPage() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
           )}
           {/* Pagination */}
           {totalPages > 1 && (
@@ -458,7 +456,7 @@ export default function UsuariosPage() {
       </Card>
 
       {/* User Statistics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Card 1: Total Usuarios */}
         <Card className="bg-blue-50/50 border-blue-200">
           <CardHeader className="pb-2">
@@ -468,7 +466,7 @@ export default function UsuariosPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-900">{stats?.usuarios?.total || total}</div>
+            <div className="text-lg sm:text-2xl font-bold text-blue-900 break-words">{stats?.usuarios?.total || total}</div>
             <p className="text-xs text-blue-600/70 mt-1">
               {stats?.usuarios?.activos || 0} activos
             </p>
@@ -502,7 +500,7 @@ export default function UsuariosPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-900">{stats?.usuarios?.o365Vinculados || 0}</div>
+            <div className="text-lg sm:text-2xl font-bold text-green-900 break-words">{stats?.usuarios?.o365Vinculados || 0}</div>
             <p className="text-xs text-green-600/70 mt-1">
               Usuarios vinculados
             </p>
@@ -518,7 +516,7 @@ export default function UsuariosPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-amber-900 mb-1">
+            <div className="text-base sm:text-xl font-bold text-amber-900 mb-1 break-words">
               {stats?.usuarios?.ciudades || 0}
             </div>
             <div className="space-y-0.5">
@@ -541,7 +539,7 @@ export default function UsuariosPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-cyan-900 mb-1">
+            <div className="text-base sm:text-xl font-bold text-cyan-900 mb-1 break-words">
               {stats?.usuarios?.especialidades || 0}
             </div>
             <div className="space-y-0.5">
@@ -564,7 +562,7 @@ export default function UsuariosPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-rose-900">{stats?.solicitudes?.activas || 0}</div>
+            <div className="text-lg sm:text-2xl font-bold text-rose-900 break-words">{stats?.solicitudes?.activas || 0}</div>
             <p className="text-xs text-rose-600/70 mt-1">
               Activas de {stats?.solicitudes?.total || 0} total
             </p>

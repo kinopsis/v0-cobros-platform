@@ -167,7 +167,7 @@ export default function GestionPage() {
         </div>
       ) : (
       <>
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {tabs.map((tab) => (
           <Card 
             key={tab.id} 
@@ -181,7 +181,7 @@ export default function GestionPage() {
               <tab.icon className={`h-4 w-4 ${activeTab === tab.id ? 'text-primary' : 'text-muted-foreground'}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tab.count}</div>
+              <div className="text-lg sm:text-2xl font-bold break-words">{tab.count}</div>
             </CardContent>
           </Card>
         ))}
@@ -202,7 +202,7 @@ export default function GestionPage() {
       <Card>
         <CardHeader>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <div className="overflow-x-auto -mx-1 px-1 pb-1">
+            <div className="-mx-1 px-1 pb-1">
             <TabsList className="grid w-full grid-cols-4 min-w-[320px]">
               {tabs.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">

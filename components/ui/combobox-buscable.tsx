@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils"
 
 interface ComboboxBuscableProps {
-  options: { value: string; label: string }[]
+  options: { value: string; label: string; filterValue?: string }[]
   value: string
   onChange: (value: string) => void
   placeholder?: string
@@ -61,7 +61,7 @@ export function ComboboxBuscable({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0"
+        className="p-0 max-h-[60vh]"
         style={{ width: "var(--radix-popover-trigger-width)" }}
       >
         <Command>
@@ -72,9 +72,10 @@ export function ComboboxBuscable({
               {options.map((opt) => (
                 <CommandItem
                   key={opt.value}
-                  value={opt.value}
+                  value={opt.filterValue || opt.value}
                   onSelect={(currentValue) => {
-                    onChange(currentValue === value ? "" : currentValue)
+                    // Si usamos filterValue, extraer el código real (opt.value)
+                    onChange(opt.value === value ? "" : opt.value)
                     setOpen(false)
                   }}
                 >

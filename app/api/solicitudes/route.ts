@@ -70,6 +70,52 @@ export async function POST(request: NextRequest) {
   const etapaPreliminarRaw = fd.get("etapa_preliminar") as string
   const etapa_preliminar = JSON.parse(etapaPreliminarRaw || "{}")
   const estado = (fd.get("estado") as string) || "EN_VALIDACION"
+
+  // Resolver código de juzgado desde el radicado (formato: 0-codigo-9digitos-00)
+  let codigoJuzgadoResuelto: string | null = null
+  let nombreJuzgadoResuelto: string | null = null
+  if (radicado_origen) {
+    // Intentar parsear formato nuevo: 0-{codigo}-{9digitos}-00
+    const newFormatMatch = radicado_origen.match(/^0-(\d+)-\d{9}-00$/)
+    let codigoBuscar: string | null = null
+    if (newFormatMatch) {
+      codigoBuscar = newFormatMatch[1]
+    } else {
+      // Fallback: buscar por prefijo (formato legacy)
+      codigoBuscar = radicado_origen
+    }
+
+    if (codigoBuscar) {
+      // Buscar el código en la tabla (búsqueda exacta primero)
+      const { data: codigoData } = await supabase
+        .from("codigos_despachos")
+        .select("codigo, nombre")
+        .eq("codigo", codigoBuscar)
+        .maybeSingle()
+
+      if (codigoData) {
+        codigoJuzgadoResuelto = codigoData.codigo
+        nombreJuzgadoResuelto = codigoData.nombre
+      } else {
+        // Longest-prefix-match para formatos legacy
+        const { data: codigosData } = await supabase
+          .from("codigos_despachos")
+          .select("codigo, nombre")
+          .order("codigo", { ascending: false })
+          .limit(50)
+
+        if (codigosData?.length) {
+          for (const c of codigosData) {
+            if (radicado_origen.startsWith(c.codigo)) {
+              codigoJuzgadoResuelto = c.codigo
+              nombreJuzgadoResuelto = c.nombre
+              break
+            }
+          }
+        }
+      }
+    }
+  }
   
   // Extraer archivos
   const documentos = fd.getAll("documentos") as File[]
@@ -96,8 +142,10 @@ export async function POST(request: NextRequest) {
       radicado_origen: radicado_origen || "",
       clase_proceso: (naturaleza || "DESACATO"),  // DB col: clase_proceso
       asunto: (concepto || "PROVIDENCIA"),          // DB col: asunto
-      juzgado_conocimiento: null,
-      descripcion_proceso: null,
+      juzgado_conocimiento: nombreJuzgadoResuelto || null,
+      descripcion_proceso: codigoJuzgadoResuelto
+        ? `Código origen: ${codigoJuzgadoResuelto} — ${nombreJuzgadoResuelto}`
+        : null,
       // Etapa preliminar (viene del form)
       etapa_preliminar: etapa_preliminar || null,
       prioridad: "MEDIA",

@@ -134,7 +134,7 @@ export default function CasosPage() {
       </div>
 
       {/* Contadores */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {tabs.map((tab) => (
           <Card 
             key={tab.id} 
@@ -154,7 +154,7 @@ export default function CasosPage() {
               }`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tab.count}</div>
+              <div className="text-lg sm:text-2xl font-bold break-words">{tab.count}</div>
             </CardContent>
           </Card>
         ))}
