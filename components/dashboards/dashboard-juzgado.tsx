@@ -245,7 +245,7 @@ export function DashboardJuzgado() {
                     </p>
                   </div>
                   <Button variant="outline" size="sm" asChild>
-                    <Link href={`/solicitudes/${solicitud.id}/editar`}>
+                    <Link href={`/solicitudes/nueva?edit=${solicitud.id}&corregir=1`}>
                       Corregir
                     </Link>
                   </Button>

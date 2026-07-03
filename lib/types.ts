@@ -116,6 +116,7 @@ export interface Solicitud {
   observaciones?: string
   motivoDevolucion?: string
   motivoDevolucionAbogado?: string
+  respuestaJuzgado?: string
   archivosRequeridos?: string
   prioridad: Prioridad
   diasSLA: number

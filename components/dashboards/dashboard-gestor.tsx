@@ -37,8 +37,8 @@ export function DashboardGestor() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/solicitudes?limit=5").then(r => r.json()),
-      fetch("/api/abogados").then(r => r.json()),
+      fetch("/api/solicitudes?limit=5").then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
+      fetch("/api/abogados").then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
     ]).then(([sol, abo]) => {
       setSolicitudes((sol.data || []).filter((s: any) => s.estado === "EN_VALIDACION"))
       setAbogados(abo.data || [])

@@ -67,10 +67,10 @@ export default function LoginPage() {
             </div>
 
             <div className="bg-card border rounded-lg p-4 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">CREDENCIALES TEMPORALES</p>
+              <p className="text-xs font-medium text-muted-foreground">ACCESO RESTRINGIDO</p>
               <div className="space-y-1 text-xs text-muted-foreground">
-                <p><strong>Admin:</strong> admin@chia.gov.co / test123</p>
-                <p><strong>Otros usuarios:</strong> su email / cobros2026</p>
+                <p>Ingrese con las credenciales proporcionadas por su administrador.</p>
+                <p>Si no tiene acceso, contacte al equipo de soporte técnico.</p>
               </div>
             </div>
           </div>

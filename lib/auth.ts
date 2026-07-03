@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import AzureAD from "@auth/core/providers/azure-ad"
 import Credentials from "@auth/core/providers/credentials"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { loginLimiter, getClientIP } from "@/lib/rate-limit"
 import bcrypt from "bcryptjs"
 
 // Multi-tenant (patron vTiger): solo se requiere client_id + client_secret.
@@ -33,7 +34,14 @@ const providers: any[] = [
       email: { label: "Email", type: "email" },
       password: { label: "Password", type: "password" },
     },
-    async authorize(credentials) {
+    async authorize(credentials, request) {
+      // Rate limiting: máximo 5 intentos por minuto por IP
+      const clientIP = getClientIP(request as Request)
+      const rateLimitResult = await loginLimiter.limit(`login:${clientIP}`)
+      if (!rateLimitResult.success) {
+        throw new Error("Demasiados intentos. Intente de nuevo en un minuto.")
+      }
+
       const email = (credentials?.email as string)?.toLowerCase().trim()
       const password = credentials?.password as string
       if (!email || !password) return null
@@ -159,5 +167,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   session: { strategy: "jwt", maxAge: 30 * 60 },
-  trustHost: true,
+  trustHost: process.env.AUTH_TRUST_HOST === "true" || process.env.NODE_ENV !== "production",
+  // Protección CSRF explícita para credentials provider
+  useSecureCookies: process.env.NODE_ENV === "production",
+  cookies: {
+    csrfToken: {
+      name: process.env.NODE_ENV === "production"
+        ? "__Host-next-auth.csrf-token"
+        : "next-auth.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
 })

@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --no-frozen-lockfile --config.ignore-scripts=true
+    pnpm install --frozen-lockfile --config.ignore-scripts=true
 
 FROM node:22-alpine AS builder
 ENV PNPM_HOME="/pnpm"
@@ -26,7 +26,7 @@ COPY lib/ ./lib/
 COPY hooks/ ./hooks/
 COPY public/ ./public/
 COPY styles/ ./styles/
-COPY next.config.mjs tsconfig.json postcss.config.mjs package.json ./
+COPY next.config.mjs tsconfig.json postcss.config.mjs package.json proxy.ts ./
 
 RUN mkdir -p lib/supabase && \
     if [ ! -f lib/supabase/admin.ts ]; then \
@@ -68,6 +68,6 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/login || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1
 
 CMD ["node", "server.js"]

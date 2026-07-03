@@ -33,7 +33,7 @@ export function DashboardAbogado() {
 
   useEffect(() => {
     fetch("/api/solicitudes?limit=100")
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(res => setMisCasos(res.data || []))
       .finally(() => setLoading(false))
   }, [])

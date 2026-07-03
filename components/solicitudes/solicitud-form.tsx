@@ -60,9 +60,10 @@ import { DocumentViewerDialog } from "@/components/pdf-viewer/document-viewer-di
 interface SolicitudFormProps {
   mode?: "create" | "edit" | "view"
   solicitudId?: string
+  modoCorreccion?: boolean
 }
 
-export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormProps) {
+export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = false }: SolicitudFormProps) {
   const router = useRouter()
   const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -110,8 +111,10 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
   ])
 
   const [documentos, setDocumentos] = useState<File[]>([])
+  const [documentosPrevios, setDocumentosPrevios] = useState<{ id: string; nombre: string; url: string; tipo: string; storage_path: string; fecha_carga: string }[]>([])
+  const [respuestaJuzgado, setRespuestaJuzgado] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [viewingDoc, setViewingDoc] = useState<{nombre:string; url:string; tipo?:string}|null>(null)
+  const [viewingDoc, setViewingDoc] = useState<{nombre:string; url:string; tipo?:string; storage_path?:string}|null>(null)
 
   // Opciones de Concepto
   const CONCEPTO_OPTIONS = [
@@ -283,6 +286,19 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
     setDocumentos(prev => prev.filter((_, i) => i !== index))
   }
 
+  const removeDocumentoPrevio = async (index: number) => {
+    const doc = documentosPrevios[index]
+    if (!doc?.id) return
+    try {
+      const res = await fetch(`/api/documentos/${doc.id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Error al eliminar")
+      setDocumentosPrevios(prev => prev.filter((_, i) => i !== index))
+      toast.success(`Documento "${doc.nombre}" eliminado`)
+    } catch {
+      toast.error("Error al eliminar el documento")
+    }
+  }
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
@@ -334,7 +350,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
       }
     })
 
-    if (documentos.length === 0) {
+    if (documentos.length === 0 && documentosPrevios.length === 0) {
       newErrors.documentos = "Debe adjuntar al menos un documento PDF"
     }
 
@@ -367,6 +383,11 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
       const url = isEditMode ? `/api/solicitudes/${solicitudId}` : "/api/solicitudes"
       const method = isEditMode ? "PATCH" : "POST"
       if (isEditMode) fd.append("estado", "EN_VALIDACION")
+      if (modoCorreccion) {
+        fd.append("motivo_devolucion", "")
+        fd.append("motivo_devolucion_abogado", "")
+        fd.append("respuesta_juzgado", respuestaJuzgado)
+      }
 
       const res = await fetch(url, { method, body: fd })
       if (!res.ok) throw new Error((await res.json()).error || "Error al enviar")
@@ -376,7 +397,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
       if (result.documentos?.errores?.length > 0) {
         toast.warning(`${result.documentos.subidos} docs subidos`)
       } else {
-        toast.success(isEditMode ? "Solicitud enviada a validación" : "Solicitud radicada exitosamente")
+        toast.success(modoCorreccion ? "Solicitud corregida y enviada a validación" : isEditMode ? "Solicitud enviada a validación" : "Solicitud radicada exitosamente")
       }
       
       router.push(`/solicitudes/${result.data?.id || solicitudId}`)
@@ -411,7 +432,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
   }
 
   const isViewMode = mode === "view"
-  const isEditMode = mode === "edit" && solicitudId
+  const isEditMode = (mode === "edit" && solicitudId) || modoCorreccion
 
   // Cargar códigos de juzgados desde la API
   useEffect(() => {
@@ -444,7 +465,7 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
         const res = await fetch(`/api/solicitudes/${solicitudId}`)
         if (!res.ok) return
         const { data } = await res.json()
-        if (data.estado !== "BORRADOR") { toast.error("Solo se pueden editar borradores"); router.push("/solicitudes"); return }
+        if (!modoCorreccion && data.estado !== "BORRADOR") { toast.error("Solo se pueden editar borradores"); router.push("/solicitudes"); return }
         setFormData({
           radicadoOrigen: data.radicado_origen || "",
           naturaleza: data.clase_proceso || data.naturaleza || "",
@@ -472,6 +493,21 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
             providencia: data.etapa_preliminar.providencia ? new Date(data.etapa_preliminar.providencia) : null,
             ejecutoria: data.etapa_preliminar.ejecutoria ? new Date(data.etapa_preliminar.ejecutoria) : null,
           })
+        }
+        // Cargar documentos adjuntos previos para modo corrección
+        if (data.documentos_adjuntos?.length) {
+          setDocumentosPrevios(data.documentos_adjuntos.map((d: any) => ({
+            id: d.id,
+            nombre: d.nombre,
+            url: d.url,
+            tipo: d.tipo || "application/pdf",
+            storage_path: d.storage_path,
+            fecha_carga: d.fecha_carga,
+          })))
+        }
+        // Cargar respuesta previa del juzgado (modo corrección)
+        if (data.respuesta_juzgado) {
+          setRespuestaJuzgado(data.respuesta_juzgado)
         }
       } catch { }
     }
@@ -915,6 +951,47 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Documentos ya existentes (modo edición/corrección) */}
+          {documentosPrevios.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">
+                Documentos actuales ({documentosPrevios.length})
+              </p>
+              {documentosPrevios.map((doc, index) => (
+                <div
+                  key={doc.storage_path || index}
+                  className="flex items-center justify-between rounded-lg border bg-muted/30 p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">{doc.nombre}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Subido: {doc.fecha_carga ? new Date(doc.fecha_carga).toLocaleDateString("es-CO") : "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">Actual</Badge>
+                    <Button type="button" variant="ghost" size="icon"
+                      onClick={() => setViewingDoc({ nombre: doc.nombre, url: doc.url, tipo: doc.tipo, storage_path: doc.storage_path })}
+                      title="Vista previa">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    {!isViewMode && (
+                      <Button type="button" variant="ghost" size="icon"
+                        onClick={() => removeDocumentoPrevio(index)}
+                        title="Eliminar documento">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <Separator className="my-2" />
+            </div>
+          )}
+
           {!isViewMode && (
             <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
               <input
@@ -993,8 +1070,8 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
         </CardContent>
       </Card>
 
-      {/* Botones de acción */}
-      {!isViewMode && (
+      {/* Botones de acción (solo en modo create/edit, NO en corrección) */}
+      {!isViewMode && !modoCorreccion && (
         <>
           <Separator />
           <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
@@ -1018,6 +1095,36 @@ export function SolicitudForm({ mode = "create", solicitudId }: SolicitudFormPro
                 <CheckCircle2 className="mr-2 h-4 w-4" />
               )}
               Enviar Solicitud
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* Modo corrección: campo de respuesta + botón de enviar */}
+      {modoCorreccion && (
+        <>
+          <Separator />
+          <div className="space-y-2">
+            <Label htmlFor="respuestaJuzgado">Respuesta del Juzgado (opcional)</Label>
+            <Textarea
+              id="respuestaJuzgado"
+              placeholder="Explique las correcciones realizadas o responda al motivo de devolución..."
+              value={respuestaJuzgado}
+              onChange={(e) => setRespuestaJuzgado(e.target.value)}
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">
+              Esta respuesta será visible para el gestor cuando la solicitud sea reenviada.
+            </p>
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+              )}
+              Enviar Corrección a Validación
             </Button>
           </div>
         </>
