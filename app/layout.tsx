@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Source_Sans_3 } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import { Toaster } from "@/components/ui/sonner"
 import { AuthProvider } from "@/lib/auth-context"
 import './globals.css'
@@ -7,11 +7,6 @@ import './globals.css'
 const inter = Inter({ 
   subsets: ["latin"],
   variable: "--font-inter"
-})
-
-const sourceSans = Source_Sans_3({ 
-  subsets: ["latin"],
-  variable: "--font-source-sans"
 })
 
 export const metadata: Metadata = {
@@ -34,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${inter.variable} ${sourceSans.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <AuthProvider>
           {children}
           <Toaster position="top-right" richColors />
