@@ -112,6 +112,7 @@ export default function SolicitudesPage() {
   const [estadoFilter, setEstadoFilter] = useState<string>("all")
   const [activeTab, setActiveTab] = useState<string>("todas")
   const isGestor = user?.rol === "GESTOR"
+  const isJuzgado = user?.rol === "JUZGADO"
 
   // Cargar solicitudes desde el API
   useEffect(() => {
@@ -423,6 +424,14 @@ export default function SolicitudesPage() {
                                   <Link href={`/solicitudes/nueva?edit=${solicitud.id}`}>
                                     <Pencil className="mr-2 h-4 w-4" />
                                     Editar borrador
+                                  </Link>
+                                </DropdownMenuItem>
+                              )}
+                              {isJuzgado && (solicitud.estado === "DEVUELTA_POR_GESTOR" || solicitud.estado === "DEVUELTA_POR_ABOGADO") && (
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/solicitudes/nueva?edit=${solicitud.id}&corregir=1`}>
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Editar y Corregir
                                   </Link>
                                 </DropdownMenuItem>
                               )}

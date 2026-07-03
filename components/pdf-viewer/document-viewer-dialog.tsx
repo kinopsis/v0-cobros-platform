@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import {
   Dialog,
@@ -9,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Download, FileText, AlertCircle } from "lucide-react"
+import { Download, FileText, AlertCircle, Loader2 } from "lucide-react"
 
 // El visor PDF es client-only (usa APIs del navegador / canvas / worker).
 const PdfViewer = dynamic(() => import("./pdf-viewer").then((m) => m.PdfViewer), {
@@ -28,6 +29,7 @@ interface DocumentViewerDialogProps {
     nombre: string
     url: string
     tipo?: string
+    storage_path?: string  // Para refrescar URL firmada
   } | null
 }
 
@@ -43,12 +45,39 @@ export function DocumentViewerDialog({
   onOpenChange,
   document: doc,
 }: DocumentViewerDialogProps) {
+  const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null)
+  const [loadingUrl, setLoadingUrl] = useState(false)
+
+  // Refrescar URL firmada al abrir el diálogo (si tiene storage_path)
+  useEffect(() => {
+    if (open && doc?.storage_path) {
+      setLoadingUrl(true)
+      setRefreshedUrl(null)
+      fetch(`/api/documentos/signed-url?path=${encodeURIComponent(doc.storage_path)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.signedUrl) {
+            setRefreshedUrl(data.signedUrl)
+          } else {
+            setRefreshedUrl(doc.url) // fallback a URL original
+          }
+        })
+        .catch(() => setRefreshedUrl(doc.url))
+        .finally(() => setLoadingUrl(false))
+    } else if (!open) {
+      setRefreshedUrl(null)
+      setLoadingUrl(false)
+    }
+  }, [open, doc])
+
   const pdf = doc ? isPdf(doc) : false
+  const displayUrl = refreshedUrl || doc?.url || ""
+  const showLoading = loadingUrl && !!doc?.storage_path
 
   const handleDownload = () => {
     if (!doc) return
     const a = document.createElement("a")
-    a.href = doc.url
+    a.href = displayUrl
     a.download = doc.nombre
     a.target = "_blank"
     a.rel = "noopener noreferrer"
@@ -67,7 +96,7 @@ export function DocumentViewerDialog({
             <span className="truncate">{doc.nombre}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">Visor de documento {doc.nombre}</DialogDescription>
-          <Button variant="ghost" size="sm" onClick={handleDownload} className="shrink-0">
+          <Button variant="ghost" size="sm" onClick={handleDownload} className="shrink-0" disabled={showLoading}>
             <Download className="mr-2 h-4 w-4" />
             Descargar
           </Button>
@@ -75,7 +104,13 @@ export function DocumentViewerDialog({
 
         <div className="min-h-0 flex-1">
           {pdf ? (
-            <PdfViewer fileUrl={doc.url} fileName={doc.nombre} />
+            showLoading ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <PdfViewer fileUrl={displayUrl} fileName={doc.nombre} />
+            )
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
               <AlertCircle className="h-10 w-10 text-muted-foreground" />

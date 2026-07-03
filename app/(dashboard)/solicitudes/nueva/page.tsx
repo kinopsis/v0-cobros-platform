@@ -10,6 +10,11 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 function NuevaSolicitudContent() {
   const searchParams = useSearchParams()
   const editId = searchParams.get("edit")
+  const corregir = searchParams.get("corregir") === "1"
+  const titulo = corregir ? "Corregir Solicitud Devuelta" : editId ? "Editar Borrador" : "Nueva Solicitud de Cobro Coactivo"
+  const subtitulo = corregir
+    ? `Corrigiendo solicitud ${editId} — Los cambios se enviarán a validación del gestor`
+    : editId ? `Editando solicitud ${editId}` : "Complete el formulario para radicar una nueva solicitud"
 
   return (
     <div className="space-y-6">
@@ -22,15 +27,15 @@ function NuevaSolicitudContent() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              {editId ? "Editar Borrador" : "Nueva Solicitud de Cobro Coactivo"}
+              {titulo}
             </h1>
             <p className="text-muted-foreground">
-              {editId ? `Editando solicitud ${editId}` : "Complete el formulario para radicar una nueva solicitud"}
+              {subtitulo}
             </p>
           </div>
         </div>
       </div>
-      <SolicitudForm mode={editId ? "edit" : "create"} solicitudId={editId || undefined} />
+      <SolicitudForm mode={editId ? "edit" : "create"} solicitudId={editId || undefined} modoCorreccion={corregir} />
     </div>
   )
 }

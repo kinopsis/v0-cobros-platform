@@ -76,7 +76,6 @@ export async function PATCH(
   // Registrar en auditoria
   await supabase.from("logs_auditoria").insert({
     usuario_id: session.user.usuarioId,
-    solicitud_id: null as unknown as string,
     tipo_accion: "ACTUALIZACION_USUARIO",
     observaciones: `Usuario ${id} actualizado`,
   })

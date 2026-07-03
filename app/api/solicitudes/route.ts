@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { auth } from "@/lib/auth"
+import { solicitudLimiter } from "@/lib/rate-limit"
+import { solicitudCreateSchema } from "@/lib/validations/solicitud-schema"
+import { apiError, logApi } from "@/lib/api-helpers"
 import { generateSolicitudId } from "@/lib/mock-data"
 
 export async function GET(request: NextRequest) {
   const session = await auth()
+  console.log("[GET /api/solicitudes] INICIO — autenticado:", !!session?.user, "rol:", session?.user?.rol)
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()  // SERVICE_ROLE_KEY — autorización en capa de aplicación (líneas abajo)
   const { searchParams } = new URL(request.url)
   const estado = searchParams.get("estado")
   const page = parseInt(searchParams.get("page") || "1")
   const limit = parseInt(searchParams.get("limit") || "20")
   const offset = (page - 1) * limit
 
-  let query = supabase.from("solicitudes").select("*, sancionados(id, nombre_completo, tipo_documento, numero_documento, tipo_persona, cantidad_sancion, tipo_sancion)", { count: "exact" })
+  let query = supabase.from("solicitudes").select("*", { count: "exact" })
 
   if (estado) {
     query = query.eq("estado", estado)
@@ -31,7 +35,9 @@ export async function GET(request: NextRequest) {
 
   // Excluir BORRADOR de otros roles (solo el creador y ADMIN ven sus borradores)
   if (session.user.rol !== "ADMIN") {
-    query = query.or(`estado.neq.BORRADOR,created_by.eq.${session.user.usuarioId}`)
+    // Nota: La sintaxis .or() con not.eq puede causar 400 en algunas versiones de PostgREST.
+    // Si hay problemas, usar filtro simple .neq() que excluye BORRADOR para todos los no-admin.
+    query = query.neq("estado", "BORRADOR")
   }
 
   const { data, error, count } = await query
@@ -39,22 +45,34 @@ export async function GET(request: NextRequest) {
     .range(offset, offset + limit - 1)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("[GET /api/solicitudes] ERROR:", error)
+    return apiError(error.message, "Error al obtener solicitudes")
   }
 
-  return NextResponse.json({
+  const responseData = {
     data: data || [],
     total: count || 0,
     page,
     limit,
     totalPages: Math.ceil((count || 0) / limit),
-  })
+  }
+  console.log("[GET /api/solicitudes] ÉXITO — filas:", (data || []).length, "total:", count)
+  return Response.json(responseData, { status: 200 })
 }
 
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  }
+
+  // Rate limiting: máximo 20 solicitudes por minuto por usuario
+  const rateLimitResult = await solicitudLimiter.limit(`solicitud:${session.user.usuarioId}`)
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes. Intente de nuevo en un minuto." },
+      { status: 429 }
+    )
   }
 
   const supabase = createAdminClient()
@@ -66,10 +84,40 @@ export async function POST(request: NextRequest) {
   const naturaleza = fd.get("naturaleza") as string
   const concepto = fd.get("concepto") as string
   const sancionadosRaw = fd.get("sancionados") as string
-  const sancionados = JSON.parse(sancionadosRaw || "[]")
   const etapaPreliminarRaw = fd.get("etapa_preliminar") as string
-  const etapa_preliminar = JSON.parse(etapaPreliminarRaw || "{}")
   const estado = (fd.get("estado") as string) || "EN_VALIDACION"
+
+  // PARSE y VALIDAR con Zod antes de cualquier operación de BD
+  let sancionados: any[] = []
+  let etapa_preliminar: Record<string, unknown> = {}
+  try {
+    sancionados = JSON.parse(sancionadosRaw || "[]")
+    etapa_preliminar = JSON.parse(etapaPreliminarRaw || "{}")
+  } catch {
+    return NextResponse.json(
+      { error: "Datos inválidos: formato JSON incorrecto en sancionados o etapa_preliminar" },
+      { status: 400 }
+    )
+  }
+
+  const validation = solicitudCreateSchema.safeParse({
+    radicado_origen,
+    naturaleza,
+    concepto,
+    sancionados,
+    etapa_preliminar: Object.keys(etapa_preliminar).length > 0 ? etapa_preliminar : undefined,
+    estado,
+  })
+
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: "Datos inválidos",
+        details: validation.error.flatten(),
+      },
+      { status: 400 }
+    )
+  }
 
   // Resolver código de juzgado desde el radicado (formato: 0-codigo-9digitos-00)
   let codigoJuzgadoResuelto: string | null = null
@@ -161,7 +209,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(error.message, "Error al crear la solicitud")
   }
 
   // Insertar sancionados en la tabla separada
@@ -191,6 +239,26 @@ export async function POST(request: NextRequest) {
       
       // Convertir File a ArrayBuffer para compatibilidad
       const arrayBuffer = await file.arrayBuffer()
+
+      // Validar magic bytes: solo aceptar PDFs reales
+      const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+      if (file.size > MAX_FILE_SIZE) {
+        uploadErrors.push(`${file.name}: El archivo excede el tamaño máximo permitido (10MB).`)
+        continue
+      }
+
+      const header = new Uint8Array(arrayBuffer.slice(0, 5))
+      const isPdf =
+        header[0] === 0x25 && // %
+        header[1] === 0x50 && // P
+        header[2] === 0x44 && // D
+        header[3] === 0x46 && // F
+        header[4] === 0x2D    // -
+      if (!isPdf) {
+        uploadErrors.push(`${file.name}: Tipo de archivo no permitido. Solo se aceptan archivos PDF.`)
+        continue
+      }
+
       const buffer = Buffer.from(arrayBuffer)
       
       const { error: uploadError } = await supabase.storage
@@ -201,7 +269,7 @@ export async function POST(request: NextRequest) {
         })
 
       if (uploadError) {
-        console.error(`[Upload Error] ${file.name}:`, uploadError.message)
+        logApi("error", `[Upload Error] ${file.name}`, uploadError)
         uploadErrors.push(`${file.name}: ${uploadError.message}`)
         continue
       }
@@ -220,7 +288,7 @@ export async function POST(request: NextRequest) {
         fecha_carga: new Date().toISOString(),
       })
     } catch (uploadErr: any) {
-      console.error(`[Upload Exception] ${file.name}:`, uploadErr.message || uploadErr)
+      logApi("error", `[Upload Exception] ${file.name}`, uploadErr)
       uploadErrors.push(`${file.name}: ${uploadErr.message || "Error desconocido"}`)
     }
   }
@@ -229,7 +297,7 @@ export async function POST(request: NextRequest) {
   if (documentosAdjuntos.length > 0) {
     const { error: insertDocsError } = await supabase.from("documentos_adjuntos").insert(documentosAdjuntos)
     if (insertDocsError) {
-      console.error("Error insertando en documentos_adjuntos:", insertDocsError)
+      logApi("error", "Error insertando en documentos_adjuntos", insertDocsError)
     }
   }
 

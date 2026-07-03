@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { auth } from "@/lib/auth"
+import { biLimiter } from "@/lib/rate-limit"
 import { convertirSancionACOP } from "@/lib/utils"
 
 export async function GET(request: NextRequest) {
@@ -9,7 +10,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()  // SERVICE_ROLE_KEY — autorización en capa de aplicación
+
+  // Rate limiting: máximo 10 requests por minuto por usuario
+  const rateLimitResult = await biLimiter.limit(`bi:${session.user.usuarioId}`)
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { error: "Demasiadas consultas. Intente de nuevo en un minuto." },
+      { status: 429 }
+    )
+  }
+
   const { searchParams } = new URL(request.url)
   const rol = session.user.rol
   const juzgadoFiltro = searchParams.get("juzgado")

@@ -30,7 +30,7 @@ export async function GET() {
 
   return NextResponse.json({
     conectado: !!tenantId,
-    tenantId: tenantId ? `${tenantId.substring(0, 8)}...` : null,
+    tenantId: tenantId ? "***" : null,
     dominioPermitido: dominio || "cendoj.ramajudicial.gov.co",
     ultimaSync: ultimaSync || null,
     usuariosSincronizados: usuariosSync || 0,

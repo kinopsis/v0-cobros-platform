@@ -45,7 +45,8 @@ import {
   Scale,
   Loader2,
   XCircle,
-  UserPlus
+  UserPlus,
+  Pencil
 } from "lucide-react"
 
 function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> }) {
@@ -55,7 +56,7 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
   const searchParams = useSearchParams()
   const actionParam = searchParams.get("action") as "aprobar" | "devolver" | "asignar" | null
 
-  const [viewingDoc, setViewingDoc] = useState<{ nombre: string; url: string; tipo?: string } | null>(null)
+  const [viewingDoc, setViewingDoc] = useState<{ nombre: string; url: string; tipo?: string; storage_path?: string } | null>(null)
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +67,7 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
 
   const isGestor = user?.rol === "GESTOR"
   const isAbogado = user?.rol === "ABOGADO"
+  const isJuzgado = user?.rol === "JUZGADO"
 
   useEffect(() => {
     async function fetchSolicitud() {
@@ -99,6 +101,7 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
           radicadoSistemaJusticia: d.radicado_sistema_justicia,
           observaciones: d.observaciones,
           motivoDevolucion: d.motivo_devolucion,
+          respuestaJuzgado: d.respuesta_juzgado,
           prioridad: d.prioridad || "MEDIA",
           diasSLA: d.dias_sla || 10,
           montoRecuperado: d.monto_recuperado,
@@ -157,30 +160,6 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
 
   const handleDescargarComprobante = () => {
     setShowResumen(true)
-  }
-
-  // Corregir y reenviar (JUZGADO)
-  const handleCorregirYReenviar = async () => {
-    if (!solicitud) return
-    const nuevoEstado = "EN_VALIDACION"
-
-    try {
-      const res = await fetch(`/api/solicitudes/${solicitud.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          estado: nuevoEstado,
-          motivo_devolucion: null,
-          motivo_devolucion_abogado: null,
-          observaciones: "Corregido por el juzgado — enviado a validación del gestor",
-        }),
-      })
-      if (!res.ok) throw new Error("Error al reenviar")
-      toast.success("Solicitud enviada a validación del gestor")
-      router.refresh()
-    } catch (err: any) {
-      toast.error("Error al reenviar", { description: err.message })
-    }
   }
 
   if (loading) {
@@ -309,9 +288,16 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
                 </div>
               </div>
             )}
-            <Button className="mt-4" onClick={handleCorregirYReenviar}>
-                Corregir y Reenviar
-            </Button>
+            {isJuzgado && (
+              <div className="mt-4 flex justify-end">
+                <Button asChild>
+                  <Link href={`/solicitudes/nueva?edit=${solicitud.id}&corregir=1`}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Editar y Corregir
+                  </Link>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
         )
@@ -466,7 +452,7 @@ function SolicitudDetailContent({ params }: { params: Promise<{ id: string }> })
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => setViewingDoc({ nombre: doc.nombre, url: doc.url, tipo: doc.tipo })}>
+                      <Button variant="ghost" size="sm" onClick={() => setViewingDoc({ nombre: doc.nombre, url: doc.url, tipo: doc.tipo, storage_path: (doc as any).storage_path })}>
                         Ver
                       </Button>
                       <Button variant="ghost" size="sm" asChild>

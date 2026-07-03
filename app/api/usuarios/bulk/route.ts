@@ -35,7 +35,6 @@ export async function PATCH(request: NextRequest) {
   // Registrar en auditoria
   await supabase.from("logs_auditoria").insert({
     usuario_id: session.user.usuarioId,
-    solicitud_id: null as unknown as string,
     tipo_accion: accion === "activar" ? "USUARIOS_ACTIVADOS" : "USUARIOS_DESACTIVADOS",
     observaciones: `${ids.length} usuarios ${accion === "activar" ? "activados" : "desactivados"}`,
   })
