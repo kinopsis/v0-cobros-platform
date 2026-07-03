@@ -45,7 +45,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
         <div className="grid gap-8 md:grid-cols-2 items-center">
           {/* Seccion Izquierda */}
@@ -186,7 +186,7 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -199,7 +199,7 @@ function Feature({ title, desc }: { title: string; desc: string }) {
         </div>
       </div>
       <div>
-        <h3 className="font-semibold text-sm">{title}</h3>
+        <h2 className="font-semibold text-sm">{title}</h2>
         <p className="text-xs text-muted-foreground">{desc}</p>
       </div>
     </div>

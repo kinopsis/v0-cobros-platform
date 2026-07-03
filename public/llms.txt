@@ -1,0 +1,12 @@
+# Sistema de Gestión de Cobro Coactivo
+
+> Plataforma web centralizada para la gestión integral de procesos de cobro coactivo de la Dirección Seccional de Administración Judicial de Antioquia.
+
+## Tecnología
+- Next.js 16 + React 19
+- Supabase (PostgreSQL)
+- Tailwind CSS v4 + shadcn/ui
+- NextAuth.js v5 (Office 365 + credenciales)
+
+## Enlaces
+- Repositorio: https://github.com/kinopsis/v0-cobros-platform
