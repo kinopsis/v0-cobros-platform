@@ -69,25 +69,20 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
   
-  // Estado del formulario
   const [formData, setFormData] = useState({
     radicadoOrigen: "",
     naturaleza: "",
     concepto: "",
   })
 
-  // Estado del radicado dividido: código juzgado + secuencial manual
   const [codigoJuzgado, setCodigoJuzgado] = useState("")
   const [secuencialRadicado, setSecuencialRadicado] = useState("")
   const [codigosJuzgados, setCodigosJuzgados] = useState<{ value: string; label: string }[]>([])
   const [juzgadoInfo, setJuzgadoInfo] = useState<{ codigo: string; nombre: string } | null>(null)
   const [loadingCodigos, setLoadingCodigos] = useState(true)
 
-  // Función helper: descomponer radicado en código + secuencial
-  // Soporta: nuevo formato 0-codigo-9digitos-00 y formato legacy (concatenación simple)
   const descomponerRadicado = (radicado: string) => {
     if (!radicado) return { codigo: "", secuencial: "" }
-    // Intentar parsear nuevo formato: 0-{codigo}-{9digitos}-00
     const newFormatMatch = radicado.match(/^0-(\d+)-(\d{9})-00$/)
     if (newFormatMatch) {
       const codigo = newFormatMatch[1]
@@ -95,7 +90,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
         return { codigo, secuencial: newFormatMatch[2] }
       }
     }
-    // Fallback: longest-prefix-match para formatos legacy
     if (codigosJuzgados.length === 0) return { codigo: "", secuencial: radicado }
     const sorted = [...codigosJuzgados].sort((a, b) => b.value.length - a.value.length)
     for (const opt of sorted) {
@@ -116,7 +110,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [viewingDoc, setViewingDoc] = useState<{nombre:string; url:string; tipo?:string; storage_path?:string}|null>(null)
 
-  // Opciones de Concepto
   const CONCEPTO_OPTIONS = [
     { value: "ARANCEL", label: "Arancel" },
     { value: "INCAPACIDAD", label: "Incapacidad" },
@@ -125,7 +118,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
     { value: "REINTEGRO", label: "Reintegro" },
   ]
 
-  // Cascada: opciones de Naturaleza según Concepto
   const NATURALEZA_OPTIONS: Record<string, string[]> = {
     ARANCEL: ['ARANCEL - ARANCEL'],
     INCAPACIDAD: ['INCAPACIDAD - INCAPACIDADES'],
@@ -145,7 +137,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
     formData.concepto ? NATURALEZA_OPTIONS[formData.concepto] || [] : []
   , [formData.concepto])
 
-  // Estado simplificado de fechas del proceso
   const [etapaPreliminar, setEtapaPreliminar] = useState({
     providencia: null as Date | null,
     ejecutoria: null as Date | null,
@@ -161,20 +152,16 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
     setFormData(prev => ({ ...prev, concepto: value, naturaleza: naturalezaAuto }))
   }
 
-  // Validación de radicado: formato 0-codigo-9digitos-00 (excepto "00" = libre)
   const validateRadicado = (value: string) => {
     if (!value) return ""
-    // Caso especial: código "00" = formato alfanumérico libre
     if (codigoJuzgado === "00") {
       if (value.length < 3) return "El radicado debe tener al menos 3 caracteres"
       return ""
     }
     if (!codigoJuzgado) {
-      // Sin juzgado seleccionado aún, solo validar que no esté vacío y tenga estructura básica
       if (value.length < 10) return "Seleccione un juzgado primero"
       return ""
     }
-    // Formato: 0-{codigoJuzgado}-{9digitos}-00
     const pattern = new RegExp(`^0-${codigoJuzgado.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d{9}-00$`)
     if (!pattern.test(value)) {
       return `Formato: 0-${codigoJuzgado}-XXXXXXXXX-00 (9 dígitos)`
@@ -182,7 +169,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
     return ""
   }
 
-  // Validación de documento
   const validateDocumento = (tipo: TipoDocumento, numero: string) => {
     if (!numero) return "El número de documento es requerido"
     if (tipo === "CC" && (numero.length < 6 || numero.length > 10)) {
@@ -197,25 +183,21 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     
-    // Validación en tiempo real para radicado
     if (field === "radicadoOrigen") {
       const error = validateRadicado(value)
       setErrors(prev => ({ ...prev, radicadoOrigen: error }))
     }
   }
 
-  // Manejador de cambio del código de juzgado (Combobox)
   const handleCodigoJuzgadoChange = (value: string) => {
     setCodigoJuzgado(value)
     const found = codigosJuzgados.find(c => c.value === value)
     if (found) {
-      // Extraer el nombre del label (formato: "codigo — nombre")
       const nombrePart = found.label.split(" — ").slice(1).join(" — ")
       setJuzgadoInfo({ codigo: value, nombre: nombrePart || found.label })
     } else {
       setJuzgadoInfo(null)
     }
-    // Consolidar radicado: 0-codigo-secuencial-00
     const consolidado = value === "00" ? secuencialRadicado : value ? `0-${value}-${secuencialRadicado}-00` : ""
     setFormData(prev => ({ ...prev, radicadoOrigen: consolidado }))
     if (consolidado) {
@@ -224,10 +206,8 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
     }
   }
 
-  // Manejador de cambio del secuencial (dígitos manuales)
   const handleSecuencialChange = (value: string) => {
     setSecuencialRadicado(value)
-    // Consolidar radicado: 0-codigo-secuencial-00
     const consolidado = codigoJuzgado === "00" ? value : codigoJuzgado ? `0-${codigoJuzgado}-${value}-00` : ""
     setFormData(prev => ({ ...prev, radicadoOrigen: consolidado }))
     if (consolidado) {
@@ -264,6 +244,25 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
       return
     }
     setSancionados(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleDocumentoBlur = async (index: number, numeroDocumento: string) => {
+    if (numeroDocumento.length < 6) return
+    try {
+      const res = await fetch(`/api/sancionados?lookup=${encodeURIComponent(numeroDocumento)}`)
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.found && data.data?.nombre_completo) {
+        handleSancionadoChange(index, "nombreCompleto", data.data.nombre_completo)
+        if (data.data.tipo_persona) {
+          handleSancionadoChange(index, "tipoPersona", data.data.tipo_persona)
+        }
+        if (data.data.ciudad) {
+          handleSancionadoChange(index, "ciudad", data.data.ciudad)
+        }
+        toast.success("Nombre autocompletado desde registros existentes")
+      }
+    } catch { }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -316,14 +315,12 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
     if (!formData.naturaleza) {
       newErrors.naturaleza = "Seleccione la naturaleza"
     } else if (formData.concepto) {
-      // Validar que la naturaleza pertenezca al concepto seleccionado
       const opcionesValidas = NATURALEZA_OPTIONS[formData.concepto] || []
       if (!opcionesValidas.includes(formData.naturaleza)) {
         newErrors.naturaleza = `La naturaleza no corresponde al concepto "${CONCEPTO_OPTIONS.find(c => c.value === formData.concepto)?.label || formData.concepto}"`
       }
     }
 
-    // Validar fechas obligatorias
     if (!etapaPreliminar.providencia) {
       newErrors.providencia = "Seleccione la fecha de providencia"
     }
@@ -331,7 +328,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
       newErrors.ejecutoria = "Seleccione la fecha de ejecutoria"
     }
 
-    // Validar sancionados
     sancionados.forEach((s, index) => {
       if (!s.tipoPersona) {
         newErrors[`sancionado_${index}_tipo`] = "Seleccione el tipo de sancionado"
@@ -390,9 +386,15 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
       }
 
       const res = await fetch(url, { method, body: fd })
-      if (!res.ok) throw new Error((await res.json()).error || "Error al enviar")
+      let result: any
+      try {
+        result = await res.json()
+      } catch {
+        const text = await res.clone().text().catch(() => "")
+        throw new Error(text?.slice(0, 200) || `Error del servidor (${res.status})`)
+      }
       
-      const result = await res.json()
+      if (!res.ok) throw new Error(result?.error || `Error del servidor (${res.status})`)
       
       if (result.documentos?.errores?.length > 0) {
         toast.warning(`${result.documentos.subidos} docs subidos`)
@@ -420,9 +422,15 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
       fd.append("estado", "BORRADOR")
       
       const res = await fetch("/api/solicitudes", { method: "POST", body: fd })
-      if (!res.ok) throw new Error((await res.json()).error || "Error al guardar")
+      let result: any
+      try {
+        result = await res.json()
+      } catch {
+        const text = await res.clone().text().catch(() => "")
+        throw new Error(text?.slice(0, 200) || `Error del servidor (${res.status})`)
+      }
       
-      const result = await res.json()
+      if (!res.ok) throw new Error(result?.error || `Error del servidor (${res.status})`)
       toast.success("Borrador guardado", { description: `ID: ${result.data.id}` })
     } catch (err: any) {
       toast.error(err.message || "Error al guardar el borrador")
@@ -434,7 +442,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
   const isViewMode = mode === "view"
   const isEditMode = (mode === "edit" && solicitudId) || modoCorreccion
 
-  // Cargar códigos de juzgados desde la API
   useEffect(() => {
     async function loadCodigos() {
       try {
@@ -449,7 +456,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
         }))
         setCodigosJuzgados(options)
       } catch {
-        // Silencioso: si falla la carga, el usuario puede digitar manualmente
       } finally {
         setLoadingCodigos(false)
       }
@@ -457,7 +463,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
     loadCodigos()
   }, [])
 
-  // Cargar datos del borrador para edición
   useEffect(() => {
     if (!isEditMode || !solicitudId) return
     async function loadSolicitud() {
@@ -471,7 +476,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
           naturaleza: data.clase_proceso || data.naturaleza || "",
           concepto: data.asunto || data.concepto || "",
         })
-        // Descomponer radicado existente (se ejecuta cuando codigosJuzgados ya estén cargados)
         const decomposed = descomponerRadicado(data.radicado_origen || "")
         setCodigoJuzgado(decomposed.codigo)
         setSecuencialRadicado(decomposed.secuencial)
@@ -494,7 +498,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
             ejecutoria: data.etapa_preliminar.ejecutoria ? new Date(data.etapa_preliminar.ejecutoria) : null,
           })
         }
-        // Cargar documentos adjuntos previos para modo corrección
         if (data.documentos_adjuntos?.length) {
           setDocumentosPrevios(data.documentos_adjuntos.map((d: any) => ({
             id: d.id,
@@ -505,7 +508,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
             fecha_carga: d.fecha_carga,
           })))
         }
-        // Cargar respuesta previa del juzgado (modo corrección)
         if (data.respuesta_juzgado) {
           setRespuestaJuzgado(data.respuesta_juzgado)
         }
@@ -516,7 +518,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Sección 1: Datos del Despacho (oculto para JUZGADO) */}
       {user?.rol !== "JUZGADO" && (
         <Card>
           <CardHeader>
@@ -557,7 +558,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
         </Card>
       )}
 
-      {/* Sección 2: Datos del Proceso */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -569,7 +569,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Fila 1: Radicado de Origen (código juzgado + secuencial) */}
           <div className="space-y-4">
             <div>
               <Label>
@@ -580,7 +579,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
               </p>
             </div>
 
-            {/* Selector de Juzgado */}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Código del Juzgado</Label>
               <ComboboxBuscable
@@ -605,7 +603,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
               )}
             </div>
 
-            {/* Dígitos restantes */}
             <div className="space-y-1.5">
               <Label htmlFor="secuencialRadicado" className="text-xs text-muted-foreground">
                 {codigoJuzgado === "00"
@@ -629,7 +626,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
               />
             </div>
 
-            {/* Validación del radicado consolidado */}
             {errors.radicadoOrigen && (
               <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />{errors.radicadoOrigen}
@@ -648,7 +644,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
             )}
           </div>
 
-          {/* Fila 2: Concepto + Naturaleza (cascada) */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="concepto">
@@ -702,7 +697,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
 
           <Separator />
 
-          {/* Fechas del Proceso */}
           <div className="space-y-4">
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
               Fechas del Proceso
@@ -757,7 +751,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
         </CardContent>
       </Card>
 
-      {/* Sección 3: Sancionados */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -794,7 +787,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
               )}
               
               <div className="space-y-3">
-                {/* Fila 1: Tipo de Sancionado */}
                 <div className="space-y-2">
                   <Label>Tipo de Sancionado</Label>
                   <Select
@@ -816,7 +808,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
                   )}
                 </div>
 
-                {/* Fila 2: Tipo Documento + Número Documento */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-[30%_70%]">
                   <div className="space-y-2">
                     <Label>Tipo de Documento</Label>
@@ -843,6 +834,7 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
                       placeholder={sancionado.tipoDocumento === "NIT" ? "900123456-7" : "1234567890"}
                       value={sancionado.numeroDocumento || ""}
                       onChange={(e) => handleSancionadoChange(index, "numeroDocumento", e.target.value)}
+                      onBlur={(e) => handleDocumentoBlur(index, e.target.value)}
                       disabled={isViewMode}
                       className={errors[`sancionado_${index}_documento`] ? "border-destructive" : ""}
                     />
@@ -852,7 +844,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
                   </div>
                 </div>
 
-                {/* Fila 3: Nombre Completo */}
                 <div className="space-y-2">
                   <Label>
                     Nombre Completo <span className="text-destructive">*</span>
@@ -869,7 +860,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
                   )}
                 </div>
 
-                {/* Fila 4: Valor Sanción */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-muted-foreground">Valor Sanción</Label>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-[30%_70%]">
@@ -909,7 +899,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
                   </div>
                 </div>
 
-                {/* Fila 5: Ciudad + Dirección */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-[30%_70%]">
                   <div className="space-y-2">
                     <Label>Ciudad</Label>
@@ -939,7 +928,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
         </CardContent>
       </Card>
 
-      {/* Sección 4: Documentos */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -951,7 +939,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Documentos ya existentes (modo edición/corrección) */}
           {documentosPrevios.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">
@@ -1070,7 +1057,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
         </CardContent>
       </Card>
 
-      {/* Botones de acción (solo en modo create/edit, NO en corrección) */}
       {!isViewMode && !modoCorreccion && (
         <>
           <Separator />
@@ -1100,7 +1086,6 @@ export function SolicitudForm({ mode = "create", solicitudId, modoCorreccion = f
         </>
       )}
 
-      {/* Modo corrección: campo de respuesta + botón de enviar */}
       {modoCorreccion && (
         <>
           <Separator />
