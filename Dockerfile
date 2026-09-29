@@ -28,6 +28,21 @@ COPY public/ ./public/
 COPY styles/ ./styles/
 COPY next.config.mjs tsconfig.json postcss.config.mjs package.json proxy.ts ./
 
+# ── Variables de build: SOLO publicas ────────────────────────────────────────
+# NEXT_PUBLIC_* las inlinea Next.js en el bundle del cliente; por diseno no son
+# secretas (van en el JS publico). Se pasan como ARG/ENV porque NO disparan el
+# warning SecretsUsedInArgOrEnv de Buildkit (no coinciden con patron de secreto).
+#
+# Los secretos de servidor (AUTH_SECRET, AUTH_URL, AUTH_AZURE_AD_*,
+# SUPABASE_SERVICE_ROLE_KEY) NO se declaran aqui: next-auth v5 y el cliente
+# admin de Supabase los leen de process.env en RUNTIME. Coolify los inyecta al
+# contenedor como environment variables. Usar ARG/ENV con secretos los dejaria
+# inspeccionables con `docker history` y genera los warnings de Buildkit.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 RUN mkdir -p lib/supabase && \
     if [ ! -f lib/supabase/admin.ts ]; then \
       printf 'import { createClient } from "@supabase/supabase-js"\nexport function createAdminClient() {\n  return createClient(\n    process.env.NEXT_PUBLIC_SUPABASE_URL!,\n    process.env.SUPABASE_SERVICE_ROLE_KEY!,\n    { auth: { autoRefreshToken: false, persistSession: false } }\n  )\n}\n' > lib/supabase/admin.ts ; \
@@ -44,6 +59,8 @@ RUN mkdir -p lib/supabase && \
 
 RUN node -e "const fs=require('fs');const p=require('path');const rp=p.dirname(require.resolve('react-pdf/package.json'));const ws=p.join(rp,'node_modules','pdfjs-dist','build','pdf.worker.min.mjs');fs.mkdirSync('public',{recursive:true});if(fs.existsSync(ws)){fs.copyFileSync(ws,'public/pdf.worker.min.mjs');console.log('Worker copiado')}else{console.warn('Worker no encontrado, se usara fallback')}"
 
+# Build sin secretos en capas: si algen pasa un secreto por error, no queda en
+# el histórico. next build solo necesita las vars NEXT_PUBLIC_* (ENV de arriba).
 RUN pnpm next build
 
 FROM node:22-alpine AS runner
@@ -62,6 +79,9 @@ USER nextjs
 
 EXPOSE 3000
 
+# NODE_ENV y demas runtime vars (AUTH_SECRET, AUTH_URL, AUTH_AZURE_AD_*,
+# SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_*) las inyecta Coolify al contenedor
+# en tiempo de ejecución. Nada de secretos queda en la imagen.
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
